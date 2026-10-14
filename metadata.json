@@ -1,0 +1,6 @@
+{
+  "name": "منصة نغمة العلم التعليمية",
+  "description": "منظومة تعليمية ذكية وشاملة لجميع المراحل الدراسية مع نظام القفل المتسلسل، أكواد التفعيل، لوحة تحكم الأدمن الشاملة، وبوابة المعلمين لرفع درجات أولياء الأمور.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
