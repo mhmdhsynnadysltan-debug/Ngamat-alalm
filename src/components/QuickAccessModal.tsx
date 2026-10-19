@@ -61,18 +61,7 @@ export const QuickAccessModal: React.FC<Props> = ({
         onSwitchRole('teacher');
       },
     },
-    {
-      id: 'admin-dash',
-      title: 'بوابة المنشئ السرية (لوحة التحكم) 🔒',
-      subtitle: 'محمية برمز سري خاص لإدارة الكورسات والمناهج والمحتوى بالكامل',
-      category: 'لوحة الإدارة',
-      icon: Shield,
-      action: () => {
-        onClose();
-        onSwitchRole('admin');
-        onGoToSection('admin-section');
-      },
-    },
+
     {
       id: 'parent-portal',
       title: 'بوابة متابعة ولي الأمر 👨‍👩‍👦',
@@ -97,6 +86,17 @@ export const QuickAccessModal: React.FC<Props> = ({
       },
     },
     {
+      id: 'student-profile-action',
+      title: 'الملف الشخصي للطالب وحالة الحساب 👨‍🎓',
+      subtitle: 'عرض حالة الحساب (نشط / موقوف / قيد المراجعة)، المفكرة الرقمية، وسجل الدرجات',
+      category: 'الطلاب والتحفيز',
+      icon: User,
+      action: () => {
+        onClose();
+        onGoToSection('student-profile-section');
+      },
+    },
+    {
       id: 'leaderboard-sec',
       title: 'لوحة شرف الأوائل والمسابقات 🏆',
       subtitle: 'ترتيب عباقرة نغمة العلم وتحديات الأسبوع والـ XP',
@@ -105,6 +105,17 @@ export const QuickAccessModal: React.FC<Props> = ({
       action: () => {
         onClose();
         onGoToSection('leaderboard-section');
+      },
+    },
+    {
+      id: 'admin-panel-action',
+      title: 'لوحة تحكم الأدمن (محمية بالرمز السري 🔒)',
+      subtitle: 'دخول مخصص لمدير المنظومة بالرقم السري فقط لإدارة الكورسات والطلاب والأكواد',
+      category: 'لوحة الإدارة',
+      icon: Shield,
+      action: () => {
+        onClose();
+        onGoToSection('admin-section');
       },
     },
   ];

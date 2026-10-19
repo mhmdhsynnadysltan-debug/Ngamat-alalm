@@ -172,7 +172,7 @@ export const LeaderboardView: React.FC = () => {
                 </td>
                 <td className="p-4">
                   <div className="flex items-center gap-3">
-                    <img src={student.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
+                    <img src={student.avatar} alt={student.name} className="w-10 h-10 rounded-full object-cover border border-slate-200" />
                     <div>
                       <h4 className="font-bold text-slate-900 text-sm">{student.name}</h4>
                       <span className="text-[11px] text-slate-500">{student.gradeLevel}</span>

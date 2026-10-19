@@ -33,6 +33,7 @@ export const TeacherProfileView: React.FC<Props> = ({
   const teacherCourses = courses.filter((c) => c.teacherId === teacher.id || c.teacherName === teacher.name);
   const [activeTab, setActiveTab] = useState<'courses' | 'chat'>('courses');
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  const isTeacherOrAdmin = currentUser?.role === 'teacher' || currentUser?.role === 'admin';
 
   return (
     <div className="space-y-6 text-right">
@@ -95,23 +96,27 @@ export const TeacherProfileView: React.FC<Props> = ({
 
         {/* Action Buttons for this specific teacher */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-slate-800">
-          {/* 1. Teacher Grade Upload Button */}
-          <button
-            onClick={() => onOpenTeacherGradeModal(teacher)}
-            className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
-          >
-            <Award className="w-4 h-4 text-amber-300" />
-            <span>زر رفع درجات أولياء الأمور (خاص بـ {teacher.name.split(' ')[0]}) 📊</span>
-          </button>
+          {/* 1. Teacher Grade Upload Button (Visible to Teacher & Admin only) */}
+          {isTeacherOrAdmin && (
+            <button
+              onClick={() => onOpenTeacherGradeModal(teacher)}
+              className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2"
+            >
+              <Award className="w-4 h-4 text-amber-300" />
+              <span>زر رفع درجات أولياء الأمور (خاص بالمعلم) 📊</span>
+            </button>
+          )}
 
-          {/* 2. Print & Create Vouchers Button */}
-          <button
-            onClick={() => setIsVoucherModalOpen(true)}
-            className="p-3 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl text-xs font-black transition-all shadow-md flex items-center justify-center gap-2"
-          >
-            <Printer className="w-4 h-4" />
-            <span>إنشاء وطباعة كروت الأكواد للكورس 🎫</span>
-          </button>
+          {/* 2. Print & Create Vouchers Button (Visible to Teacher & Admin only) */}
+          {isTeacherOrAdmin && (
+            <button
+              onClick={() => setIsVoucherModalOpen(true)}
+              className="p-3 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-2xl text-xs font-black transition-all shadow-md flex items-center justify-center gap-2"
+            >
+              <Printer className="w-4 h-4" />
+              <span>إنشاء وطباعة كروت الأكواد للكورس 🎫</span>
+            </button>
+          )}
 
           {/* 3. Group Chat switch */}
           <button
@@ -163,8 +168,25 @@ export const TeacherProfileView: React.FC<Props> = ({
           </div>
 
           {/* Courses Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {teacherCourses.map((course) => {
+          {teacherCourses.length === 0 ? (
+            <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
+                <BookOpen className="w-8 h-8" />
+              </div>
+              <h4 className="text-lg font-black text-slate-800">لا توجد كورسات مضافة لهذا المعلم حالياً</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                يتم حالياً تجهيز ورفع المحاضرات والمناهج الدراسية الجديدة. تفضل بزيارة غرفة الدردشة للتواصل مع الأستاذ.
+              </p>
+              <button
+                onClick={() => setActiveTab('chat')}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                دخول غرفة الدردشة
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {teacherCourses.map((course) => {
               const isActivated = activatedCourseIds.includes(course.id) || !course.requiresActivationCode;
               const lessonsTotal = course.chapters.reduce((acc, ch) => acc + ch.lessons.length, 0);
 
@@ -230,7 +252,7 @@ export const TeacherProfileView: React.FC<Props> = ({
 
                     {!isActivated && course.requiresActivationCode && (
                       <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
-                        <span>كود تجريبي جاهز</span>
+                        <span>يلزم إدخال كود التفعيل</span>
                         <button
                           onClick={() => onOpenActivationModal(course)}
                           className="text-amber-700 font-bold hover:underline"
@@ -244,7 +266,8 @@ export const TeacherProfileView: React.FC<Props> = ({
               );
             })}
           </div>
-        </div>
+        )}
+      </div>
       )}
 
       {/* Voucher Printer Modal */}

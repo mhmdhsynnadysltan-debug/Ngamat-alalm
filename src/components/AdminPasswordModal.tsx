@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, KeyRound, ShieldAlert, X, Shield, Eye, EyeOff } from 'lucide-react';
-import { verifyAdminSecretCode } from '../utils/storage';
+import { verifyAdminSecretCode, normalizeDigits } from '../utils/storage';
 
 interface Props {
   isOpen: boolean;
@@ -17,13 +17,13 @@ export const AdminPasswordModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPass = password.trim();
-    if (cleanPass === '2035' || verifyAdminSecretCode(cleanPass)) {
+    const cleanPass = normalizeDigits(password.trim());
+    if (verifyAdminSecretCode(cleanPass)) {
       setError(null);
       setPassword('');
       onSuccess();
     } else {
-      setError('كلمة المرور غير صحيحة. كلمة مرور المنشئ هي 2035.');
+      setError('الرمز السري غير صحيح. يرجى إدخال الرمز المعتمد في إعدادات المنصة.');
     }
   };
 
@@ -41,10 +41,10 @@ export const AdminPasswordModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
             </div>
             <div>
               <h3 className="text-base font-black flex items-center gap-2">
-                <span>بوابة المنشئ السرية</span>
-                <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded-full">رمز 2035</span>
+                <span>التحقق من صلاحيات الإدارة</span>
+                <span className="text-[10px] bg-amber-400/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-400/30">محمية برمز</span>
               </h3>
-              <p className="text-xs text-slate-300">الدخول عبر (أهلاً ومرحباً في نغمة العلم)</p>
+              <p className="text-xs text-slate-300">لوحة التحكم العامة للمنظومة التعليمية</p>
             </div>
           </div>
           <button 
@@ -60,13 +60,13 @@ export const AdminPasswordModal: React.FC<Props> = ({ isOpen, onClose, onSuccess
           <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 text-xs text-slate-700 flex items-start gap-2.5">
             <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <p className="leading-relaxed">
-              هذه البوابة مخصصة حصرياً للمنشئ لإدارة كافة إعدادات المنصة وتغيير أي شيء. يرجى إدخال كلمة المرور (<strong>2035</strong>) للمتابعة.
+              هذه البوابة مخصصة للإدارة لإعداد ومتابعة كافة أقسام المنظومة. يرجى إدخال الرمز السري المعتمد للمتابعة.
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-800 mb-1.5">
-              أدخل كلمة مرور المنشئ:
+              أدخل كلمة المرور السرية:
             </label>
             <div className="relative">
               <input

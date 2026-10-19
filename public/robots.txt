@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://nagamatalalm.netlify.app/sitemap.xml

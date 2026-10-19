@@ -54,6 +54,8 @@ export interface Lesson {
   isLocked?: boolean;
   quiz?: {
     passingScore: number;
+    durationMinutes?: number;
+    title?: string;
     questions: QuizQuestion[];
   };
   essayQuestion?: EssayQuestion;
@@ -172,6 +174,21 @@ export interface EssaySubmission {
   submittedAt: string;
 }
 
+export type StudentStatus = 'active' | 'suspended' | 'pending';
+
+export interface StudentNote {
+  id: string;
+  studentId?: string;
+  studentName?: string;
+  courseId: string;
+  courseTitle: string;
+  lessonId: string;
+  lessonTitle: string;
+  noteText: string;
+  isSharedWithTeacher: boolean;
+  createdAt: string;
+}
+
 export interface AuthUser {
   role: Role;
   name: string;
@@ -181,4 +198,8 @@ export interface AuthUser {
   parentPhone?: string;
   studentCode?: string;
   selectedTeacherId?: string;
+  isAdmin?: boolean;
+  status?: StudentStatus; // 'active' (نشط) | 'suspended' (موقوف) | 'pending' (قيد المراجعة)
+  statusUpdatedAt?: string;
+  statusReason?: string;
 }

@@ -3,14 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Role, Course, Teacher, AuthUser 
 } from './types';
 import { 
   getStoredCourses, getStoredTeachers, getActivatedCourseIds, 
   activateCourse, getStoredAuthUser, saveStoredAuthUser,
-  getPlatformSettings, PlatformSettings
+  getPlatformSettings, PlatformSettings, getRegisteredStudents,
+  getStoredGradeRecords
 } from './utils/storage';
 import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
@@ -20,6 +21,7 @@ import { CourseViewer } from './components/CourseViewer';
 import { ParentPortalView } from './components/ParentPortalView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LeaderboardView } from './components/LeaderboardView';
+import { StudentProfileView } from './components/StudentProfileView';
 import { WhatsAppSupportModal } from './components/WhatsAppSupportModal';
 import { TeacherGradeUploaderModal } from './components/TeacherGradeUploaderModal';
 import { ActivationCodeModal } from './components/ActivationCodeModal';
@@ -28,15 +30,33 @@ import { AuthModal } from './components/AuthModal';
 import { AdminPasswordModal } from './components/AdminPasswordModal';
 import { InteractiveBackground } from './components/InteractiveBackground';
 import { WelcomeRegistrationPage } from './components/WelcomeRegistrationPage';
+import { NotFoundView } from './components/NotFoundView';
 import { 
   MessageCircle, Search, Award, Shield, User, GraduationCap, 
-  Sparkles, Phone, Lock, Eye, Megaphone
+  Sparkles, Phone, Lock, Eye, Megaphone, KeyRound
 } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(getStoredAuthUser());
-  const [role, setRole] = useState<Role>(currentUser?.role || 'student');
-  const [activeNav, setActiveNav] = useState<string>('teachers');
+  // Admin access state strictly requires verified secret passcode from settings
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
+    try {
+      return typeof window !== 'undefined' && sessionStorage.getItem('admin_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [role, setRole] = useState<Role>(() => {
+    const isUnlocked = typeof window !== 'undefined' && sessionStorage.getItem('admin_unlocked') === 'true';
+    if (currentUser?.role === 'admin') {
+      return isUnlocked ? 'admin' : 'student';
+    }
+    return currentUser?.role || 'student';
+  });
+  const [activeNav, setActiveNav] = useState<string>(() => {
+    const isUnlocked = typeof window !== 'undefined' && sessionStorage.getItem('admin_unlocked') === 'true';
+    return currentUser?.role === 'admin' && isUnlocked ? 'admin' : 'teachers';
+  });
   const [isEyeComfortMode, setIsEyeComfortMode] = useState(false);
   const [isGuestBrowsing, setIsGuestBrowsing] = useState(false);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(getPlatformSettings());
@@ -46,14 +66,15 @@ export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>(getStoredTeachers());
   const [activatedCourseIds, setActivatedCourseIds] = useState<string[]>(getActivatedCourseIds());
 
+  // Student Profile viewing state
+  const [viewedStudentProfile, setViewedStudentProfile] = useState<AuthUser | null>(null);
+
   // Teacher Workspace State
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
 
   // Course Viewer state
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
 
-  // Admin access state (requires 2035)
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [isAdminPasswordModalOpen, setIsAdminPasswordModalOpen] = useState(false);
 
   // Modals state
@@ -75,20 +96,81 @@ export default function App() {
     setPlatformSettings(getPlatformSettings());
   };
 
+  // Dynamic SEO Page Title & Meta Description Sync
+  useEffect(() => {
+    let title = `${platformSettings.platformName} | منصة تعليمية للكورسات والدروس لجميع المراحل الدراسية`;
+    let desc = `${platformSettings.platformName} منصة تعليمية شاملة لجميع المراحل الدراسية مع نظام القفل المتسلسل وبوابة أولياء الأمور.`;
+
+    if (activeCourse) {
+      title = `${activeCourse.title} - ${activeCourse.subject} | ${platformSettings.platformName}`;
+      desc = `كورس ${activeCourse.title} مادة ${activeCourse.subject} مع الأستاذ ${activeCourse.teacherName} للمرحلة ${activeCourse.gradeLevel} على منصة ${platformSettings.platformName}.`;
+    } else if (selectedTeacher) {
+      title = `الأستاذ ${selectedTeacher.name} - ${selectedTeacher.subject} | ${platformSettings.platformName}`;
+      desc = `شروحات وحصص الأستاذ ${selectedTeacher.name} لمادة ${selectedTeacher.subject} على منصة ${platformSettings.platformName}.`;
+    } else if (activeNav === 'teachers') {
+      title = `دليل المعلمين المعتمدين والمناهج | ${platformSettings.platformName}`;
+      desc = `تصفح نخبة المعلمين المعتمدين وكورسات المراحل الابتدائية والإعدادية والثانوية في منصة ${platformSettings.platformName}.`;
+    } else if (activeNav === 'leaderboard') {
+      title = `لوحة شرف الأوائل والمسابقات | ${platformSettings.platformName}`;
+      desc = `لوحة الشرف وتحديات الأسبوع وترتيب الطلاب المتفوقين في منصة ${platformSettings.platformName}.`;
+    } else if (activeNav === 'parent') {
+      title = `بوابة أولياء الأمور لمتابعة النتائج والدرجات | ${platformSettings.platformName}`;
+      desc = `كشف درجات الطلاب الشهري ونسبة الحضور وملاحظات المعلم عبر منصة ${platformSettings.platformName}.`;
+    } else if (activeNav === 'profile') {
+      title = `ملف الطالب وحالة الحساب | ${platformSettings.platformName}`;
+      desc = `الملف الأكاديمي للطالب والمفكرة الرقمية ومتابعة الكورسات في منصة ${platformSettings.platformName}.`;
+    } else if (activeNav === 'admin') {
+      title = `لوحة التحكم والإدارة العامة | ${platformSettings.platformName}`;
+      desc = `لوحة الإدارة المعتمدة للتحكم في الكورسات وأكواد التفعيل والطلاب.`;
+    } else if (activeNav === 'welcome') {
+      title = `${platformSettings.platformName} | بوابتك نحو التفوق والدرجات النهائية`;
+      desc = platformSettings.welcomeDescription || desc;
+    } else if (activeNav === '404') {
+      title = `الصفحة غير موجودة (404) | ${platformSettings.platformName}`;
+      desc = `الصفحة المطلوبة غير موجودة على منصة ${platformSettings.platformName}.`;
+    }
+
+    document.title = title;
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) metaDesc.setAttribute('content', desc);
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) ogTitle.setAttribute('content', title);
+    const ogDesc = document.querySelector('meta[property="og:description"]');
+    if (ogDesc) ogDesc.setAttribute('content', desc);
+  }, [activeNav, activeCourse, selectedTeacher, platformSettings]);
+
   const handleRoleChange = (newRole: Role) => {
-    setRole(newRole);
+    // If user is a student and trying to switch to teacher without admin unlock, require login
+    if (newRole === 'teacher' && currentUser?.role === 'student' && !isAdminUnlocked) {
+      setAuthDefaultTab('teacher');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    // Entering admin mode is STRICTLY with the secret code
     if (newRole === 'admin') {
       if (!isAdminUnlocked) {
         setIsAdminPasswordModalOpen(true);
-      } else {
-        setActiveNav('admin');
-        setActiveCourse(null);
+        return;
       }
-    } else if (newRole === 'parent') {
+      setRole('admin');
+      setActiveNav('admin');
+      setActiveCourse(null);
+      return;
+    }
+
+    // Entering parent mode
+    if (newRole === 'parent' && currentUser?.role === 'student' && !isAdminUnlocked) {
+      setAuthDefaultTab('parent');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    setRole(newRole);
+    if (newRole === 'parent') {
       setActiveNav('parent');
       setActiveCourse(null);
     } else if (newRole === 'teacher') {
-      // Pick first teacher if none selected
       const target = teachers[0] || null;
       setModalActiveTeacher(target);
       setIsTeacherGradesOpen(true);
@@ -99,22 +181,58 @@ export default function App() {
   };
 
   const handleNavigate = (section: string) => {
-    if (section === 'admin') {
+    const validSections = ['welcome', 'teachers', 'leaderboard', 'parent', 'profile', 'admin', '404'];
+    const targetSection = validSections.includes(section) ? section : '404';
+
+    // Navigating to admin is STRICTLY protected by secret code
+    if (targetSection === 'admin') {
       if (!isAdminUnlocked) {
         setIsAdminPasswordModalOpen(true);
         return;
       }
     }
-    if (section === 'welcome') {
+
+    // Prevent student from accessing admin without unlock
+    if (currentUser?.role === 'student' && targetSection === 'admin' && !isAdminUnlocked) {
+      setIsAdminPasswordModalOpen(true);
+      return;
+    }
+
+    if (targetSection === 'welcome') {
       setIsGuestBrowsing(false);
     }
-    setActiveNav(section);
+    setActiveNav(targetSection);
     setActiveCourse(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleCloseAdminPasswordModal = () => {
+    setIsAdminPasswordModalOpen(false);
+    if (!isAdminUnlocked) {
+      if (role === 'admin') {
+        setRole(currentUser?.role && currentUser.role !== 'admin' ? currentUser.role : 'student');
+      }
+      if (activeNav === 'admin') {
+        setActiveNav('teachers');
+      }
+    }
+  };
+
   const handleAdminPasswordSuccess = () => {
+    const creatorUser: AuthUser = {
+      role: 'admin',
+      name: 'مدير المنظومة',
+      phone: '+201012345678',
+      isAdmin: true,
+    };
+    setCurrentUser(creatorUser);
+    saveStoredAuthUser(creatorUser);
     setIsAdminUnlocked(true);
+    try {
+      sessionStorage.setItem('admin_unlocked', 'true');
+    } catch {
+      // ignore
+    }
     setIsAdminPasswordModalOpen(false);
     setRole('admin');
     setActiveNav('admin');
@@ -130,16 +248,44 @@ export default function App() {
 
     if (user.role === 'admin') {
       setIsAdminUnlocked(true);
+      try {
+        sessionStorage.setItem('admin_unlocked', 'true');
+      } catch {
+        // ignore
+      }
       setActiveNav('admin');
-    } else if (user.role === 'parent') {
-      setActiveNav('parent');
-    } else if (user.role === 'teacher') {
-      const matchTeacher = teachers.find((t) => t.id === user.selectedTeacherId) || teachers[0];
-      setSelectedTeacher(matchTeacher);
-      setActiveNav('teachers');
     } else {
-      setActiveNav('teachers');
+      setIsAdminUnlocked(false);
+      try {
+        sessionStorage.removeItem('admin_unlocked');
+      } catch {
+        // ignore
+      }
+      if (user.role === 'parent') {
+        setActiveNav('parent');
+      } else if (user.role === 'teacher') {
+        const matchTeacher = teachers.find((t) => t.id === user.selectedTeacherId) || teachers[0];
+        setSelectedTeacher(matchTeacher);
+        setActiveNav('teachers');
+      } else {
+        setActiveNav('teachers');
+      }
     }
+    setActiveCourse(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLockAdmin = () => {
+    setIsAdminUnlocked(false);
+    try {
+      sessionStorage.removeItem('admin_unlocked');
+    } catch {
+      // ignore
+    }
+    if (role === 'admin') {
+      setRole('student');
+    }
+    setActiveNav('teachers');
     setActiveCourse(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -149,6 +295,11 @@ export default function App() {
     saveStoredAuthUser(null);
     setRole('student');
     setIsAdminUnlocked(false);
+    try {
+      sessionStorage.removeItem('admin_unlocked');
+    } catch {
+      // ignore
+    }
     setIsGuestBrowsing(false);
     setActiveNav('welcome');
     setActiveCourse(null);
@@ -182,8 +333,8 @@ export default function App() {
     setIsTeacherGradesOpen(true);
   };
 
-  // Dedicated Standalone Welcome & Registration Page: "خلي التسجيل في صفحة لوحده هو والمقدمة الترحيبية"
-  if ((!currentUser && !isGuestBrowsing) || activeNav === 'welcome') {
+  // Dedicated Standalone Welcome & Registration Page: "عاوز اول صفحه تظهر هي صفحه تسجيل الدخول"
+  if (!currentUser || activeNav === 'welcome') {
     return (
       <>
         <WelcomeRegistrationPage
@@ -198,10 +349,6 @@ export default function App() {
           }}
           onOpenAdminLogin={() => {
             setIsAdminPasswordModalOpen(true);
-          }}
-          onSkipAsGuest={() => {
-            setIsGuestBrowsing(true);
-            setActiveNav('teachers');
           }}
           teachers={teachers}
         />
@@ -252,6 +399,7 @@ export default function App() {
         <Navbar
           currentRole={role}
           currentUser={currentUser}
+          isAdminUnlocked={isAdminUnlocked}
           onRoleChange={handleRoleChange}
           activeNav={activeNav}
           onNavigate={handleNavigate}
@@ -305,20 +453,24 @@ export default function App() {
                   </button>
                 </div>
               )}
-              <span className="text-[11px] text-slate-400">تبديل فوري:</span>
-              {(['student', 'teacher', 'parent', 'admin'] as Role[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => handleRoleChange(r)}
-                  className={`text-[11px] px-2 py-0.5 rounded font-bold transition-all ${
-                    role === r
-                      ? 'bg-amber-400 text-slate-950'
-                      : 'text-slate-300 hover:text-white bg-white/10'
-                  }`}
-                >
-                  {r === 'student' ? 'طالب' : r === 'teacher' ? 'أستاذ' : r === 'parent' ? 'ولي أمر' : 'المنشئ 🔒'}
-                </button>
-              ))}
+              {isAdminUnlocked && (
+                <div className="flex items-center gap-1.5 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/30">
+                  <span className="text-[11px] text-amber-300 font-bold">تبديل فوري (المنشئ):</span>
+                  {(['student', 'teacher', 'parent', 'admin'] as Role[]).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => handleRoleChange(r)}
+                      className={`text-[11px] px-2 py-0.5 rounded font-bold transition-all ${
+                        role === r
+                          ? 'bg-amber-400 text-slate-950'
+                          : 'text-slate-300 hover:text-white bg-white/10'
+                      }`}
+                    >
+                      {r === 'student' ? 'طالب' : r === 'teacher' ? 'أستاذ' : r === 'parent' ? 'ولي أمر' : 'لوحة الإدارة 👑'}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -357,6 +509,8 @@ export default function App() {
                       setAuthDefaultTab('teacher');
                       setIsAuthModalOpen(true);
                     }}
+                    currentUser={currentUser}
+                    currentRole={role}
                   />
                 )}
 
@@ -384,6 +538,7 @@ export default function App() {
                       }}
                       onOpenTeacherGradeModal={(t) => handleOpenTeacherGradesForTeacher(t)}
                       onOpenWhatsApp={handleOpenWhatsAppWithTopic}
+                      currentUser={currentUser}
                     />
                   )}
                 </div>
@@ -401,18 +556,81 @@ export default function App() {
                 <ParentPortalView
                   onOpenTeacherGradeModal={() => handleOpenTeacherGradesForTeacher()}
                   onOpenWhatsApp={handleOpenWhatsAppWithTopic}
+                  currentUser={currentUser}
                 />
               </div>
             )}
 
             {activeNav === 'admin' && (
-              <div id="admin-section">
-                <AdminDashboard
-                  onUpdateCourses={refreshData}
-                  onPreviewCourse={handleSelectCourse}
-                  onOpenQuickAccess={() => setIsQuickAccessOpen(true)}
+              isAdminUnlocked ? (
+                <div id="admin-section">
+                  <AdminDashboard
+                    onUpdateCourses={refreshData}
+                    onPreviewCourse={handleSelectCourse}
+                    onOpenQuickAccess={() => setIsQuickAccessOpen(true)}
+                    onViewStudentProfile={(student) => {
+                      setViewedStudentProfile(student);
+                      setActiveNav('profile');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    onLockAdmin={handleLockAdmin}
+                  />
+                </div>
+              ) : (
+                <div className="bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-3xl p-8 sm:p-12 text-center text-white max-w-lg mx-auto shadow-2xl space-y-6 my-10 animate-in fade-in">
+                  <div className="w-16 h-16 rounded-3xl bg-amber-500/20 text-amber-400 mx-auto flex items-center justify-center border border-amber-500/30 shadow-inner">
+                    <Lock className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-xl font-black text-white">لوحة تحكم الأدمن محمية بالرقم السري 🔒</h2>
+                    <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
+                      الدخول مقتصر على مدير المنظومة برقم المرور السري المعتمد لضمان أعلى معايير الأمان وحماية البيانات.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsAdminPasswordModalOpen(true)}
+                    className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <KeyRound className="w-4 h-4 text-slate-950" />
+                    <span>إدخال الرقم السري لفتح لوحة الأدمن</span>
+                  </button>
+                </div>
+              )
+            )}
+
+            {activeNav === 'profile' && (
+              <div id="student-profile-section">
+                <StudentProfileView
+                  student={
+                    viewedStudentProfile ||
+                    (currentUser && currentUser.role === 'student' ? currentUser : getRegisteredStudents()[0])
+                  }
+                  courses={courses}
+                  gradeRecords={getStoredGradeRecords()}
+                  onOpenWhatsApp={handleOpenWhatsAppWithTopic}
+                  onNavigate={(tab) => {
+                    setActiveNav(tab);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  onOpenCourse={handleSelectCourse}
+                  onBackToCourses={() => {
+                    if (viewedStudentProfile && (currentUser?.role === 'admin' || role === 'admin')) {
+                      setActiveNav('admin');
+                    } else {
+                      setActiveNav('teachers');
+                    }
+                    setViewedStudentProfile(null);
+                  }}
+                  isAdmin={isAdminUnlocked || role === 'admin' || currentUser?.role === 'admin'}
                 />
               </div>
+            )}
+
+            {activeNav === '404' && (
+              <NotFoundView
+                onGoHome={() => handleNavigate('welcome')}
+                onBrowseTeachers={() => handleNavigate('teachers')}
+              />
             )}
           </>
         )}
@@ -463,7 +681,7 @@ export default function App() {
 
       <AdminPasswordModal
         isOpen={isAdminPasswordModalOpen}
-        onClose={() => setIsAdminPasswordModalOpen(false)}
+        onClose={handleCloseAdminPasswordModal}
         onSuccess={handleAdminPasswordSuccess}
       />
 
@@ -505,6 +723,7 @@ export default function App() {
           if (sectionId === 'admin-section') handleNavigate('admin');
           if (sectionId === 'parent-section') handleNavigate('parent');
           if (sectionId === 'leaderboard-section') handleNavigate('leaderboard');
+          if (sectionId === 'student-profile-section') handleNavigate('profile');
           setActiveCourse(null);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
@@ -565,15 +784,32 @@ export default function App() {
                   </button>
                 </li>
                 <li>
-                  <button 
-                    onClick={() => handleNavigate('admin')} 
-                    className="hover:text-amber-300 flex items-center gap-1.5 transition-colors group text-slate-400"
-                    title="بوابة المنشئ محمية برمز سري خاص"
-                  >
-                    <Lock className="w-3.5 h-3.5 text-amber-400/80 group-hover:text-amber-400 shrink-0" />
-                    <span>بوابة المنشئ السرية</span>
+                  <button onClick={() => { setActiveNav('profile'); setActiveCourse(null); }} className="hover:text-white flex items-center gap-1.5">
+                    <span>👨‍🎓</span>
+                    <span>الملف الشخصي وحالة الطالب</span>
                   </button>
                 </li>
+                {isAdminUnlocked ? (
+                  <li>
+                    <button 
+                      onClick={() => handleNavigate('admin')} 
+                      className="hover:text-amber-300 flex items-center gap-1.5 transition-colors group text-slate-400"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-amber-400/80 group-hover:text-amber-400 shrink-0" />
+                      <span>لوحة التحكم والإدارة</span>
+                    </button>
+                  </li>
+                ) : (
+                  <li>
+                    <button 
+                      onClick={() => setIsAdminPasswordModalOpen(true)} 
+                      className="hover:text-amber-300 flex items-center gap-1.5 transition-colors group text-slate-500 hover:text-slate-300"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 shrink-0" />
+                      <span>الدخول للوحة الإدارة (بالرقم السري 🔒)</span>
+                    </button>
+                  </li>
+                )}
               </ul>
             </div>
 

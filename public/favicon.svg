@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-opacity="0.3"/>
+  <!-- Arabic Letter Noon (ن) -->
+  <g filter="url(#glow)">
+    <!-- Dot of Noon -->
+    <circle cx="256" cy="170" r="32" fill="url(#goldGrad)"/>
+    <!-- Crescent body of Noon -->
+    <path d="M 140 230 C 140 350, 372 350, 372 230 C 372 210, 396 210, 396 230 C 396 385, 116 385, 116 230 C 116 210, 140 210, 140 230 Z" fill="url(#goldGrad)"/>
+  </g>
+</svg>

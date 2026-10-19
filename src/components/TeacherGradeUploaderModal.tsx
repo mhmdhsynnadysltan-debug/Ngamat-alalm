@@ -21,17 +21,17 @@ export const TeacherGradeUploaderModal: React.FC<Props> = ({ isOpen, onClose, co
     teacherCourses[0]?.title || courses[0]?.title || 'الفيزياء الحديثة والتيار الكهربي'
   );
 
-  const [examTitle, setExamTitle] = useState('امتحان شهر أكتوبر الشامل 2026');
+  const [examTitle, setExamTitle] = useState('امتحان الشهر الشامل');
   const [activeTab, setActiveTab] = useState<'upload' | 'list' | 'preview'>('upload');
 
   // Form fields for single or new student
   const [studentName, setStudentName] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [parentPhone, setParentPhone] = useState('+2010');
-  const [score, setScore] = useState<number>(55);
+  const [parentPhone, setParentPhone] = useState('');
+  const [score, setScore] = useState<number>(0);
   const [maxScore, setMaxScore] = useState<number>(60);
-  const [attendance, setAttendance] = useState<number>(95);
-  const [teacherNotes, setTeacherNotes] = useState('طالب مجتهد، أظهر التزاماً ممتازاً في حل المسائل والتفاعل في الحصة.');
+  const [attendance, setAttendance] = useState<number>(100);
+  const [teacherNotes, setTeacherNotes] = useState('');
   const [previewRecord, setPreviewRecord] = useState<StudentGradeRecord | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -341,7 +341,7 @@ export const TeacherGradeUploaderModal: React.FC<Props> = ({ isOpen, onClose, co
                     }}
                     className="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
                   >
-                    تعبئة بيانات نموذجية للتجربة
+                    تعبئة بيانات نموذجية سريعة
                   </button>
                   <button
                     type="submit"

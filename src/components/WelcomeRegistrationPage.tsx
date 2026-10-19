@@ -6,7 +6,19 @@ import {
   Check, FileCheck, HelpCircle
 } from 'lucide-react';
 import { AuthUser, Teacher } from '../types';
-import { getPlatformSettings, addOrUpdateStudent } from '../utils/storage';
+import { 
+  getPlatformSettings, 
+  addOrUpdateStudent, 
+  getRegisteredStudents,
+  verifyAdminSecretCode, 
+  normalizeDigits, 
+  saveStoredAuthUser,
+  hashPassword,
+  verifyPassword,
+  validateEgyptianPhone,
+  validateFullName,
+  validatePasswordStrength
+} from '../utils/storage';
 
 interface Props {
   onRegisterStudent: (user: AuthUser) => void;
@@ -26,52 +38,83 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
   const [settings] = useState(getPlatformSettings());
   const [activeTab, setActiveTab] = useState<'register' | 'quickLogin'>('register');
 
-  // Registration Form State
-  const [studentName, setStudentName] = useState('عمر خالد المنشاوي');
-  const [studentPhone, setStudentPhone] = useState('+201099887766');
-  const [studentPassword, setStudentPassword] = useState('123456');
+  // Registration Form State (Empty for real students & creator)
+  const [studentName, setStudentName] = useState('');
+  const [studentPhone, setStudentPhone] = useState('');
+  const [studentPassword, setStudentPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [parentName, setParentName] = useState('خالد المنشاوي');
-  const [parentPhone, setParentPhone] = useState('+201012345678');
+  const [parentName, setParentName] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Quick Login State
-  const [loginPhone, setLoginPhone] = useState('+201099887766');
-  const [loginPassword, setLoginPassword] = useState('123456');
+  // Quick Login State (Empty for real platform)
+  const [loginPhone, setLoginPhone] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentName.trim()) {
-      setFormError('يرجى كتابة اسم الطالب الرباعي (إجباري)');
+
+    const pass = normalizeDigits(studentPassword);
+    const phone = normalizeDigits(studentPhone);
+    const sName = studentName.trim();
+
+    // 1. Check if Admin secret code is entered into password field
+    if (verifyAdminSecretCode(pass)) {
+      setFormError(null);
+      const adminUser: AuthUser = {
+        role: 'admin',
+        name: sName || 'مدير المنظومة',
+        phone: phone || '01012345678',
+        password: hashPassword(pass),
+        isAdmin: true,
+      };
+      saveStoredAuthUser(adminUser);
+      onRegisterStudent(adminUser);
       return;
     }
-    if (!studentPhone.trim()) {
-      setFormError('يرجى كتابة رقم هاتف الطالب (إجباري)');
+
+    // 2. Strict Input Validation (Name, Phone, Password, Parent)
+    const nameCheck = validateFullName(sName);
+    if (!nameCheck.isValid) {
+      setFormError(nameCheck.error || 'يرجى كتابة الاسم ثلاثياً على الأقل');
       return;
     }
-    if (!studentPassword.trim()) {
-      setFormError('يرجى تحديد كلمة المرور لحماية الحساب (إجباري)');
+
+    const phoneCheck = validateEgyptianPhone(phone);
+    if (!phoneCheck.isValid) {
+      setFormError(phoneCheck.error || 'رقم هاتف الطالب غير صحيح');
       return;
     }
+
+    const passCheck = validatePasswordStrength(pass);
+    if (!passCheck.isValid) {
+      setFormError(passCheck.error || 'كلمة المرور يجب ألا تقل عن 6 أحرف');
+      return;
+    }
+
     if (!parentName.trim()) {
-      setFormError('يرجى كتابة اسم ولي الأمر (إجباري)');
+      setFormError('يرجى كتابة اسم ولي الأمر (إجباري لإرسال التقارير)');
       return;
     }
-    if (!parentPhone.trim()) {
-      setFormError('يرجى كتابة رقم هاتف ولي الأمر لاستلام التقارير (إجباري)');
+
+    const parentPhoneCheck = validateEgyptianPhone(parentPhone);
+    if (!parentPhoneCheck.isValid) {
+      setFormError('رقم هاتف ولي الأمر غير صحيح: ' + (parentPhoneCheck.error || ''));
       return;
     }
 
     setFormError(null);
     const newUser: AuthUser = {
       role: 'student',
-      name: studentName.trim(),
-      phone: studentPhone.trim(),
-      password: studentPassword.trim(),
+      name: sName,
+      phone: phoneCheck.normalized,
+      password: hashPassword(pass),
       parentName: parentName.trim(),
-      parentPhone: parentPhone.trim(),
+      parentPhone: parentPhoneCheck.normalized,
       studentCode: 'ST-' + Math.floor(100 + Math.random() * 900),
+      status: 'active',
+      statusUpdatedAt: new Date().toISOString(),
     };
     addOrUpdateStudent(newUser);
     onRegisterStudent(newUser);
@@ -79,35 +122,78 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
 
   const handleQuickLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginPhone.trim()) {
+
+    const pass = normalizeDigits(loginPassword);
+    const phone = normalizeDigits(loginPhone);
+
+    // 1. Check if Admin secret code is entered via Quick Login password field
+    if (verifyAdminSecretCode(pass)) {
+      setFormError(null);
+      const adminUser: AuthUser = {
+        role: 'admin',
+        name: 'مدير المنظومة',
+        phone: phone || '01012345678',
+        password: hashPassword(pass),
+        isAdmin: true,
+      };
+      saveStoredAuthUser(adminUser);
+      onRegisterStudent(adminUser);
+      return;
+    }
+
+    if (!phone) {
       setFormError('يرجى كتابة رقم الهاتف المسجل أو كود الطالب');
       return;
     }
-    if (!loginPassword.trim()) {
+    if (!pass) {
       setFormError('يرجى إدخال كلمة المرور');
+      return;
+    }
+
+    // 2. Check in registered students
+    const registered = getRegisteredStudents();
+    const matched = registered.find(
+      (s) => s.phone === phone || s.studentCode?.toLowerCase() === phone.toLowerCase()
+    );
+
+    if (matched) {
+      if (matched.password && !verifyPassword(pass, matched.password)) {
+        setFormError('كلمة المرور غير صحيحة. يرجى التأكد وإعادة المحاولة.');
+        return;
+      }
+      setFormError(null);
+      saveStoredAuthUser(matched);
+      onRegisterStudent(matched);
+      return;
+    }
+
+    // 3. Fallback: validate Egyptian phone if new student logging in
+    const phoneCheck = validateEgyptianPhone(phone);
+    if (!phoneCheck.isValid) {
+      setFormError('رقم الهاتف غير مسجل. يرجى التبديل لتبويب "إنشاء حساب طالب جديد" للتسجيل لأول مرة.');
+      return;
+    }
+
+    const passCheck = validatePasswordStrength(pass);
+    if (!passCheck.isValid) {
+      setFormError(passCheck.error || 'كلمة المرور يجب ألا تقل عن 6 أحرف');
       return;
     }
 
     setFormError(null);
     const loggedUser: AuthUser = {
       role: 'student',
-      name: studentName.trim() || 'الطالب المسجل',
-      phone: loginPhone.trim(),
-      password: loginPassword.trim(),
-      parentName: parentName.trim() || 'ولي الأمر',
-      parentPhone: parentPhone.trim() || '+201012345678',
-      studentCode: 'ST-101',
+      name: 'طالب مسجل',
+      phone: phoneCheck.normalized,
+      password: hashPassword(pass),
+      parentName: 'ولي الأمر',
+      parentPhone: '01012345678',
+      studentCode: 'ST-' + Math.floor(100 + Math.random() * 900),
+      status: 'active',
+      statusUpdatedAt: new Date().toISOString(),
     };
+    addOrUpdateStudent(loggedUser);
     onRegisterStudent(loggedUser);
-  };
-
-  const applyDemoData = (sName: string, sPhone: string, sPass: string, pName: string, pPhone: string) => {
-    setStudentName(sName);
-    setStudentPhone(sPhone);
-    setStudentPassword(sPass);
-    setParentName(pName);
-    setParentPhone(pPhone);
-    setFormError(null);
   };
 
   return (
@@ -169,21 +255,12 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
       <main className="relative z-10 flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 w-full">
         {/* Welcome Banner: المقدمة الترحيبية الشاملة */}
         <section className="text-center max-w-3xl mx-auto mb-10 space-y-4">
-          {/* Creator entry via 'أهلاً ومرحباً في نغمة العلم' with password 2035 */}
+          {/* Welcome Badge */}
           <div>
-            <button
-              type="button"
-              onClick={onOpenAdminLogin}
-              className="inline-flex items-center gap-2.5 px-6 py-2.5 rounded-full bg-gradient-to-r from-amber-500/25 via-amber-400/20 to-yellow-500/25 border-2 border-amber-400/60 hover:border-amber-300 text-amber-300 hover:text-amber-200 text-xs sm:text-sm font-black shadow-lg shadow-amber-500/10 hover:shadow-amber-500/25 transition-all transform hover:scale-105 active:scale-95 cursor-pointer group"
-              title="دخول المنشئ بكلمة مرور (2035)"
-            >
-              <Sparkles className="w-4 h-4 text-amber-400 animate-pulse group-hover:rotate-12 transition-transform" />
-              <span>أهلاً ومرحباً في نغمة العلم ✨</span>
-              <Lock className="w-3.5 h-3.5 text-amber-400/80 group-hover:text-amber-300 transition-colors" />
-              <span className="text-[10px] bg-amber-400/30 text-amber-200 px-2 py-0.5 rounded-full font-bold border border-amber-400/40">
-                دخول المنشئ 🔒
-              </span>
-            </button>
+            <div className="inline-flex items-center gap-2.5 px-6 py-2 rounded-full bg-gradient-to-r from-amber-500/15 via-amber-400/20 to-yellow-500/15 border border-amber-400/40 text-amber-300 text-xs sm:text-sm font-bold shadow-xs">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>أهلاً ومرحباً بكم في منصة نغمة العلم ✨</span>
+            </div>
           </div>
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
@@ -299,14 +376,13 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
                     onChange={(e) => setStudentName(e.target.value)}
                     placeholder="مثال: عمر خالد المنشاوي"
                     className="w-full text-xs sm:text-sm px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl focus:outline-hidden focus:border-amber-400 text-white font-bold placeholder-slate-500"
-                    required
                   />
                   <span className="text-[10px] text-slate-400 block">
                     يُطبع رسمياً على شهادات التقدير المعتمدة ولوحة الشرف.
                   </span>
                 </div>
 
-                {/* 2. Student Phone (Required) */}
+                {/* 2. Student Phone */}
                 <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-1.5 focus-within:border-blue-400 transition-colors">
                   <label className="text-xs font-bold text-blue-300 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
@@ -321,14 +397,13 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
                     onChange={(e) => setStudentPhone(e.target.value)}
                     placeholder="+201099887766"
                     className="w-full text-xs sm:text-sm px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl focus:outline-hidden focus:border-blue-400 text-white font-mono text-left dir-ltr placeholder-slate-500"
-                    required
                   />
                   <span className="text-[10px] text-slate-400 block">
                     رقم هاتف الطالب الأساسي للتواصل وإشعارات الحصص.
                   </span>
                 </div>
 
-                {/* 3. Student Password (Required) */}
+                {/* 3. Student Password */}
                 <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-1.5 focus-within:border-yellow-400 transition-colors sm:col-span-2">
                   <label className="text-xs font-bold text-yellow-300 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
@@ -342,9 +417,8 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
                       type={showPassword ? 'text' : 'password'}
                       value={studentPassword}
                       onChange={(e) => setStudentPassword(e.target.value)}
-                      placeholder="اكتب كلمة مرور قوية (مثال: 123456)"
+                      placeholder="اكتب كلمة مرور قوية للحساب"
                       className="w-full text-xs sm:text-sm px-3 py-2 pl-10 bg-slate-900 border border-slate-700/80 rounded-xl focus:outline-hidden focus:border-yellow-400 text-white font-mono placeholder-slate-500"
-                      required
                     />
                     <button
                       type="button"
@@ -360,7 +434,7 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
                   </span>
                 </div>
 
-                {/* 4. Parent Name (Required) */}
+                {/* 4. Parent Name */}
                 <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-1.5 focus-within:border-emerald-400 transition-colors">
                   <label className="text-xs font-bold text-emerald-300 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
@@ -375,14 +449,13 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
                     onChange={(e) => setParentName(e.target.value)}
                     placeholder="مثال: خالد المنشاوي"
                     className="w-full text-xs sm:text-sm px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl focus:outline-hidden focus:border-emerald-400 text-white font-bold placeholder-slate-500"
-                    required
                   />
                   <span className="text-[10px] text-slate-400 block">
                     لربط ملف المتابعة الأكاديمية وبوابة أولياء الأمور.
                   </span>
                 </div>
 
-                {/* 5. Parent Phone (Required) */}
+                {/* 5. Parent Phone */}
                 <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-1.5 focus-within:border-emerald-400 transition-colors">
                   <label className="text-xs font-bold text-emerald-300 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
@@ -397,42 +470,11 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
                     onChange={(e) => setParentPhone(e.target.value)}
                     placeholder="+201012345678"
                     className="w-full text-xs sm:text-sm px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl focus:outline-hidden focus:border-emerald-400 text-white font-mono text-left dir-ltr placeholder-slate-500"
-                    required
                   />
                   <span className="text-[10px] text-slate-400 block">
                     لإرسال درجات الاختبارات وكشف المتابعة فورياً عبر واتساب.
                   </span>
                 </div>
-              </div>
-
-              {/* Quick Demo Fill Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
-                <div className="flex items-center gap-2 text-slate-400">
-                  <span>نماذج سريعة للتجربة:</span>
-                  <button
-                    type="button"
-                    onClick={() => applyDemoData('عمر خالد المنشاوي', '+201099887766', '123456', 'خالد المنشاوي', '+201012345678')}
-                    className="text-amber-400 hover:underline font-bold"
-                  >
-                    عمر وخالد
-                  </button>
-                  <span>·</span>
-                  <button
-                    type="button"
-                    onClick={() => applyDemoData('سارة إبراهيم القاضي', '+201055443322', '654321', 'إبراهيم القاضي', '+201088776655')}
-                    className="text-amber-400 hover:underline font-bold"
-                  >
-                    سارة وإبراهيم
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={onSkipAsGuest}
-                  className="text-slate-400 hover:text-white underline text-xs transition-colors"
-                >
-                  تخطي والتصفح كزائر مؤقتاً 👁️
-                </button>
               </div>
 
               {/* Submit Button */}
@@ -456,15 +498,14 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
                       <Phone className="w-3.5 h-3.5 text-blue-400" />
                       <span>رقم الهاتف المسجل أو كود الطالب</span>
                     </span>
-                    <span className="text-[10px] text-slate-400">مثال: +201099887766 أو ST-101</span>
+                    <span className="text-[10px] text-slate-400">اكتب رقمك عادي (مثال: 01012345678)</span>
                   </label>
                   <input
                     type="text"
                     value={loginPhone}
                     onChange={(e) => setLoginPhone(e.target.value)}
-                    placeholder="+201099887766 أو ST-101"
+                    placeholder="رقم الهاتف المسجل أو كود الطالب"
                     className="w-full text-xs sm:text-sm px-3.5 py-2.5 bg-slate-900 border border-slate-700/80 rounded-xl focus:outline-hidden focus:border-blue-400 text-white font-mono dir-ltr placeholder-slate-500"
-                    required
                   />
                 </div>
 
@@ -474,22 +515,14 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
                       <KeyRound className="w-3.5 h-3.5 text-amber-400" />
                       <span>كلمة المرور</span>
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => setLoginPassword('123456')}
-                      className="text-[10px] text-amber-400 hover:underline"
-                    >
-                      تجربة الكلمة الافتراضية (123456)
-                    </button>
                   </label>
                   <div className="relative">
                     <input
                       type={showLoginPassword ? 'text' : 'password'}
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      placeholder="أدخل كلمة المرور"
+                      placeholder="أدخل كلمة المرور المسجلة"
                       className="w-full text-xs sm:text-sm px-3.5 py-2.5 pl-10 bg-slate-900 border border-slate-700/80 rounded-xl focus:outline-hidden focus:border-amber-400 text-white font-mono placeholder-slate-500"
-                      required
                     />
                     <button
                       type="button"
@@ -524,20 +557,12 @@ export const WelcomeRegistrationPage: React.FC<Props> = ({
             </form>
           )}
 
-          {/* Discreet Admin Login at bottom (رمز المنشئ المخفي 2035) */}
-          <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          {/* Platform Security Guarantee Strip */}
+          <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-center text-xs text-slate-400">
             <span className="flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-emerald-400" />
-              <span>بياناتك مسجلة بأمان تام في المنظومة.</span>
+              <span>كافة بيانات الطلاب والمتابعة مسجلة ومؤمنة في المنظومة التعليمية.</span>
             </span>
-            <button
-              onClick={onOpenAdminLogin}
-              className="text-slate-500 hover:text-amber-400 transition-colors flex items-center gap-1 text-[11px]"
-              title="بوابة إدارة المنظومة الخاصة بالمنشئ"
-            >
-              <Lock className="w-3 h-3 text-amber-400/70" />
-              <span>دخول المنشئ 🔒</span>
-            </button>
           </div>
         </div>
 

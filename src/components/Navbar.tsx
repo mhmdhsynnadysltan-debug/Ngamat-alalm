@@ -9,6 +9,7 @@ import { getPlatformSettings } from '../utils/storage';
 interface Props {
   currentRole: Role;
   currentUser: AuthUser | null;
+  isAdminUnlocked: boolean;
   onRoleChange: (role: Role) => void;
   activeNav: string;
   onNavigate: (section: string) => void;
@@ -24,6 +25,7 @@ interface Props {
 export const Navbar: React.FC<Props> = ({
   currentRole,
   currentUser,
+  isAdminUnlocked,
   onRoleChange,
   activeNav,
   onNavigate,
@@ -37,20 +39,32 @@ export const Navbar: React.FC<Props> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const settings = getPlatformSettings();
+  const isTeacherOrAdmin = Boolean(
+    currentUser?.role === 'teacher' ||
+    currentUser?.role === 'admin' ||
+    currentUser?.isAdmin === true ||
+    (!currentUser && (currentRole === 'teacher' || currentRole === 'admin'))
+  ) && currentUser?.role !== 'student' && currentUser?.role !== 'parent';
+
+  // Only consider admin unlocked when verified with secret passcode
+  const isAdminUser = Boolean(isAdminUnlocked && (currentRole === 'admin' || currentUser?.role === 'admin' || currentUser?.isAdmin));
 
   const roleLabels: Record<Role, { label: string; icon: string }> = {
     student: { label: 'طالب', icon: '👨‍🎓' },
     teacher: { label: 'أستاذ', icon: '👨‍🏫' },
     parent: { label: 'ولي أمر', icon: '👨‍👩‍👦' },
-    admin: { label: 'المنشئ', icon: '🔒' },
+    admin: { label: 'لوحة التحكم', icon: '⚙️' },
   };
+
+  const availableRoles: Role[] = ['student', 'teacher', 'parent', 'admin'];
 
   const navLinks = [
     { id: 'welcome', label: 'صفحة التسجيل والترحيب 🎓' },
     { id: 'teachers', label: 'الأساتذة المعتمدون' },
     { id: 'leaderboard', label: 'لوحة الشرف والتحديات' },
     { id: 'parent', label: 'بوابة أولياء الأمور' },
-    { id: 'admin', label: 'لوحة التحكم 🔒' },
+    ...(currentUser?.role === 'student' || currentRole === 'student' ? [{ id: 'profile', label: 'ملف الطالب 👨‍🎓' }] : []),
+    ...(isAdminUnlocked ? [{ id: 'admin', label: 'لوحة التحكم 👑' }] : []),
   ];
 
   return (
@@ -111,24 +125,28 @@ export const Navbar: React.FC<Props> = ({
               <span className="text-[11px]">راحة العين</span>
             </button>
 
-            {/* Quick Access trigger button */}
-            <button
-              onClick={onOpenQuickAccess}
-              className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5"
-              title="الوصول السريع لأي قسم في أقل من ثانية"
-            >
-              <Search className="w-3.5 h-3.5 text-slate-400" />
-              <span>الوصول السريع ⚡</span>
-            </button>
+            {/* Quick Access trigger button (Visible to Teacher & Supervisor only) */}
+            {isTeacherOrAdmin && (
+              <button
+                onClick={onOpenQuickAccess}
+                className="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200 text-xs font-bold transition-colors flex items-center gap-1.5"
+                title="الوصول السريع لأي قسم في أقل من ثانية"
+              >
+                <Search className="w-3.5 h-3.5 text-slate-400" />
+                <span>الوصول السريع ⚡</span>
+              </button>
+            )}
 
-            {/* Prominent Teacher Grade Upload Button */}
-            <button
-              onClick={onOpenTeacherGrades}
-              className="px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 hover:shadow"
-            >
-              <Award className="w-4 h-4 text-amber-300" />
-              <span>رفع درجات أولياء الأمور</span>
-            </button>
+            {/* Prominent Teacher Grade Upload Button (Teacher & Admin Only) */}
+            {isTeacherOrAdmin && (
+              <button
+                onClick={onOpenTeacherGrades}
+                className="px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 hover:shadow"
+              >
+                <Award className="w-4 h-4 text-amber-300" />
+                <span>رفع درجات أولياء الأمور (خاص بالمعلم)</span>
+              </button>
+            )}
 
             {/* WhatsApp Direct Support */}
             <button
@@ -143,15 +161,41 @@ export const Navbar: React.FC<Props> = ({
             {/* Login / User Session */}
             {currentUser ? (
               <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 py-1 px-2.5 rounded-xl text-xs">
-                <span className="font-bold text-blue-900 max-w-[120px] truncate">{currentUser.name}</span>
-                {currentUser.parentName && (
-                  <span className="hidden xl:inline text-[10px] text-slate-500 font-medium">
-                    (ولي الأمر: {currentUser.parentName})
+                <button
+                  type="button"
+                  onClick={() => onNavigate('profile')}
+                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-right cursor-pointer"
+                  title="عرض الملف الشخصي وحالة الطالب"
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full shrink-0 ${
+                      (currentUser.status || 'active') === 'active'
+                        ? 'bg-emerald-500'
+                        : currentUser.status === 'pending'
+                        ? 'bg-amber-500'
+                        : 'bg-rose-500'
+                    }`}
+                  />
+                  <span className="font-bold text-blue-900 max-w-[120px] truncate">{currentUser.name}</span>
+                  <span
+                    className={`text-[9px] font-black px-1.5 py-0.2 rounded-md ${
+                      (currentUser.status || 'active') === 'active'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : currentUser.status === 'pending'
+                        ? 'bg-amber-100 text-amber-900'
+                        : 'bg-rose-100 text-rose-800'
+                    }`}
+                  >
+                    {(currentUser.status || 'active') === 'active'
+                      ? 'نشط'
+                      : currentUser.status === 'pending'
+                      ? 'قيد المراجعة'
+                      : 'موقوف'}
                   </span>
-                )}
+                </button>
                 <button
                   onClick={onLogout}
-                  className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                  className="p-1 text-slate-400 hover:text-rose-600 transition-colors mr-1"
                   title="تسجيل الخروج"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -177,24 +221,26 @@ export const Navbar: React.FC<Props> = ({
               </div>
             )}
 
-            {/* Role Switcher Pill */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-              {(Object.keys(roleLabels) as Role[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => onRoleChange(r)}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                    currentRole === r
-                      ? 'bg-white text-slate-900 shadow-2xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                  title={`التبديل إلى وضع ${roleLabels[r].label}`}
-                >
-                  <span>{roleLabels[r].icon}</span>
-                  <span className="text-[11px]">{roleLabels[r].label}</span>
-                </button>
-              ))}
-            </div>
+            {/* Role Switcher Pill (Visible only after admin unlock) */}
+            {isAdminUnlocked && (
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                {availableRoles.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => onRoleChange(r)}
+                    className={`px-2 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                      currentRole === r
+                        ? 'bg-white text-slate-900 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title={`التبديل إلى وضع ${roleLabels[r].label}`}
+                  >
+                    <span>{roleLabels[r].icon}</span>
+                    <span className="text-[11px]">{roleLabels[r].label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Mobile hamburger */}
@@ -213,13 +259,15 @@ export const Navbar: React.FC<Props> = ({
             >
               <LogIn className="w-4 h-4" />
             </button>
-            <button
-              onClick={onOpenTeacherGrades}
-              className="p-2 bg-blue-700 text-white rounded-xl text-xs font-bold"
-              title="رفع درجات أولياء الأمور"
-            >
-              <Award className="w-4 h-4 text-amber-300" />
-            </button>
+            {isTeacherOrAdmin && (
+              <button
+                onClick={onOpenTeacherGrades}
+                className="p-2 bg-blue-700 text-white rounded-xl text-xs font-bold"
+                title="رفع درجات أولياء الأمور (خاص بالمعلم)"
+              >
+                <Award className="w-4 h-4 text-amber-300" />
+              </button>
+            )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl"
@@ -250,26 +298,28 @@ export const Navbar: React.FC<Props> = ({
             ))}
           </div>
 
-          <div className="pt-2 border-t border-slate-100 space-y-2">
-            <div className="text-[11px] font-bold text-slate-400">تبديل دور المستخدم:</div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {(Object.keys(roleLabels) as Role[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => {
-                    onRoleChange(r);
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`p-2 rounded-lg text-xs font-bold flex items-center gap-1.5 ${
-                    currentRole === r ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <span>{roleLabels[r].icon}</span>
-                  <span>وضع {roleLabels[r].label}</span>
-                </button>
-              ))}
+          {isAdminUnlocked && (
+            <div className="pt-2 border-t border-slate-100 space-y-2">
+              <div className="text-[11px] font-bold text-amber-600">تبديل دور المستخدم (صلاحية المنشئ):</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {availableRoles.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => {
+                      onRoleChange(r);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`p-2 rounded-lg text-xs font-bold flex items-center gap-1.5 ${
+                      currentRole === r ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <span>{roleLabels[r].icon}</span>
+                    <span>وضع {roleLabels[r].label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
             <button

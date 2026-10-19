@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Teacher, Course } from '../types';
+import { Teacher, Course, AuthUser } from '../types';
 import { Star, Users, Award, BookOpen, MessageSquare, Sparkles, Phone, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   onSelectTeacher: (teacher: Teacher) => void;
   onOpenTeacherGradeModal: (teacher: Teacher) => void;
   onOpenWhatsApp: (topic?: string) => void;
+  currentUser?: AuthUser | null;
 }
 
 export const TeachersDirectory: React.FC<Props> = ({
@@ -16,8 +17,10 @@ export const TeachersDirectory: React.FC<Props> = ({
   onSelectTeacher,
   onOpenTeacherGradeModal,
   onOpenWhatsApp,
+  currentUser,
 }) => {
   const [searchSubject, setSearchSubject] = useState('all');
+  const isTeacherOrAdmin = currentUser?.role === 'teacher' || currentUser?.role === 'admin';
 
   const subjects = Array.from(new Set(teachers.map((t) => t.subject)));
   const filtered = teachers.filter((t) => searchSubject === 'all' || t.subject === searchSubject);
@@ -61,11 +64,28 @@ export const TeachersDirectory: React.FC<Props> = ({
       </div>
 
       {/* Teachers Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((t) => {
-          const teacherCoursesCount = courses.filter(
-            (c) => c.teacherId === t.id || c.teacherName === t.name
-          ).length;
+      {filtered.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 mx-auto flex items-center justify-center">
+            <Users className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-black text-slate-800">لا يوجد معلمون في هذا التخصص حالياً</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            يمكنك اختيار "كافة التخصصات والمواد" لعرض جميع الأساتذة المعتمدين في المنظومة.
+          </p>
+          <button
+            onClick={() => setSearchSubject('all')}
+            className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            عرض كافة المعلمين
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((t) => {
+            const teacherCoursesCount = courses.filter(
+              (c) => c.teacherId === t.id || c.teacherName === t.name
+            ).length;
 
           return (
             <div
@@ -142,14 +162,16 @@ export const TeachersDirectory: React.FC<Props> = ({
                 </button>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onOpenTeacherGradeModal(t)}
-                    className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-colors flex items-center justify-center gap-1.5"
-                    title="زر رفع الدرجات الخاص بهذا المعلم"
-                  >
-                    <Award className="w-3.5 h-3.5 text-amber-500" />
-                    <span>زر رفع الدرجات</span>
-                  </button>
+                  {isTeacherOrAdmin && (
+                    <button
+                      onClick={() => onOpenTeacherGradeModal(t)}
+                      className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-colors flex items-center justify-center gap-1.5"
+                      title="زر رفع الدرجات الخاص بهذا المعلم (خاص بالمعلم)"
+                    >
+                      <Award className="w-3.5 h-3.5 text-amber-500" />
+                      <span>زر رفع الدرجات</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={() => onSelectTeacher(t)}
@@ -165,6 +187,7 @@ export const TeachersDirectory: React.FC<Props> = ({
           );
         })}
       </div>
-    </div>
+    )}
+  </div>
   );
 };

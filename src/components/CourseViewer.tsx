@@ -2,12 +2,18 @@ import React, { useState } from 'react';
 import { 
   Lock, Unlock, CheckCircle2, PlayCircle, FileText, ArrowRight, 
   HelpCircle, Sparkles, BookOpen, Clock, Download, Share2, 
-  Award, MessageSquare, ChevronDown, Check, User, GraduationCap, Star
+  Award, MessageSquare, ChevronDown, Check, User, GraduationCap, Star,
+  Plus, Edit3, Video, AlertCircle
 } from 'lucide-react';
 import { Course, Lesson, QuizQuestion, AuthUser } from '../types';
-import { getCompletedLessonIds, markLessonCompleted, markAllLessonsCompleted } from '../utils/storage';
+import { 
+  getCompletedLessonIds, markLessonCompleted, 
+  updateLessonQuiz 
+} from '../utils/storage';
 import { QuizModal } from './QuizModal';
+import { QuizEditorModal } from './QuizEditorModal';
 import { CertificateModal } from './CertificateModal';
+import { ToastNotificationContainer, ToastItem } from './ToastNotification';
 
 interface Props {
   course: Course;
@@ -26,40 +32,122 @@ export const CourseViewer: React.FC<Props> = ({
   onOpenTeacherGradeModal,
   currentUser,
 }) => {
+  const [currentCourse, setCurrentCourse] = useState<Course>(course);
   const [completedLessonIds, setCompletedLessonIds] = useState<string[]>(getCompletedLessonIds());
   const [isCertificateOpen, setIsCertificateOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   
   // Find all lessons flattened
-  const allLessons: Lesson[] = course.chapters.flatMap((c) => c.lessons);
+  const allLessons: Lesson[] = currentCourse.chapters.flatMap((c) => c.lessons);
   const [selectedLesson, setSelectedLesson] = useState<Lesson>(allLessons[0]);
   const [activeTab, setActiveTab] = useState<'video' | 'notes' | 'essay'>('video');
 
-  // Quiz Modal state
+  // Quiz Modal & Editor Modal states
   const [isQuizOpen, setIsQuizOpen] = useState(false);
+  const [isQuizEditorOpen, setIsQuizEditorOpen] = useState(false);
 
   // Essay student answer state
   const [essayAnswer, setEssayAnswer] = useState('');
   const [essaySubmitted, setEssaySubmitted] = useState(false);
 
+  // Toast Helpers
+  const addToast = (toast: Omit<ToastItem, 'id'>) => {
+    const id = `toast-${Date.now()}-${Math.random()}`;
+    setToasts((prev) => [...prev, { ...toast, id }]);
+  };
+
+  const dismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
   // Check if a lesson is unlocked
   // Rule: Lesson 1 is always unlocked if course is activated.
   // Lesson N is unlocked if Lesson N-1 is in completedLessonIds!
   const isLessonUnlocked = (lessonIndex: number, lessonId: string) => {
-    if (!isCourseActivated && course.requiresActivationCode) return false;
+    if (!isCourseActivated && currentCourse.requiresActivationCode) return false;
     if (lessonIndex === 0) return true;
     const previousLesson = allLessons[lessonIndex - 1];
     return completedLessonIds.includes(previousLesson.id) || completedLessonIds.includes(lessonId);
   };
 
   const handleLessonPassed = (nextLessonId?: string) => {
+    const prevCompletedCount = allLessons.filter((l) => completedLessonIds.includes(l.id)).length;
     const updated = getCompletedLessonIds();
     setCompletedLessonIds(updated);
+
+    const newCompletedCount = allLessons.filter((l) => updated.includes(l.id)).length;
+    const total = allLessons.length;
+    const prevPercent = total > 0 ? (prevCompletedCount / total) * 100 : 0;
+    const newPercent = total > 0 ? (newCompletedCount / total) * 100 : 0;
+
+    // Toast Milestone: 50% course progress
+    if (prevPercent < 50 && newPercent >= 50) {
+      addToast({
+        type: 'milestone',
+        title: 'إنجاز رائع 50%! 🌟',
+        message: 'أحسنت يا بطل! لقد قطعت نصف الطريق نحو التفوق والتميز وأتممت 50% من محتوى الكورس! استمر في التألق والجدية، فالقمة بانتظارك!',
+        duration: 8000,
+      });
+    }
+
+    // Toast Milestone: 100% course completion
+    if (prevPercent < 100 && newPercent >= 100) {
+      addToast({
+        type: 'milestone',
+        title: 'مبارك التخرج من الكورس بنسبة 100%! 🎓🏆',
+        message: 'إنجاز استثنائي! أتممت كافة دروس ووحدات المنهج واجتزت جميع الكويزات بنجاح. أصبحت شهادة التقدير الرسمية المعتمدة جاهزة للتحميل الفوري الآن!',
+        actionText: 'عرض شهادة التقدير 📜',
+        onAction: () => setIsCertificateOpen(true),
+        duration: 9000,
+      });
+    }
+
     if (nextLessonId) {
       const nextLes = allLessons.find((l) => l.id === nextLessonId);
       if (nextLes) {
         setSelectedLesson(nextLes);
       }
     }
+  };
+
+  const handleQuizFailed = (score: number, passingScore: number) => {
+    addToast({
+      type: 'warning',
+      title: 'تنبيه تربوي: لم تجتز الكويز هذه المرة',
+      message: `حصلت على ${score}% بينما درجة النجاح المطلوبة لفك القفل هي ${passingScore}%. نوصيك بإعادة مشاهدة فيديو الدرس والتركيز على النقاط التوضيحية ثم إعادة المحاولة لتحقيق التفوق وفك قفل الدرس التالي! 💡📺`,
+      actionText: 'مراجعة فيديو الدرس الآن 📺',
+      onAction: () => {
+        setActiveTab('video');
+        setIsQuizOpen(false);
+      },
+      duration: 8000,
+    });
+  };
+
+  const handleSaveQuiz = (newQuiz: {
+    passingScore: number;
+    durationMinutes: number;
+    title?: string;
+    questions: QuizQuestion[];
+  }) => {
+    const updatedCourses = updateLessonQuiz(currentCourse.id, selectedLesson.id, newQuiz);
+    const updatedCourse = updatedCourses.find((c) => c.id === currentCourse.id) || {
+      ...currentCourse,
+      chapters: currentCourse.chapters.map((ch) => ({
+        ...ch,
+        lessons: ch.lessons.map((les) => (les.id === selectedLesson.id ? { ...les, quiz: newQuiz } : les)),
+      })),
+    };
+    setCurrentCourse(updatedCourse);
+    setSelectedLesson((prev) => ({ ...prev, quiz: newQuiz }));
+    setIsQuizEditorOpen(false);
+
+    addToast({
+      type: 'success',
+      title: 'تم حفظ وتفعيل الكويز بنجاح! 🚀',
+      message: `تم تحديث كويز (${selectedLesson.title}) بنجاح بمؤقت ${newQuiz.durationMinutes} دقائق و${newQuiz.questions.length} أسئلة ونسبة نجاح ${newQuiz.passingScore}%. أصبح متاحاً للطلاب الآن!`,
+      duration: 6000,
+    });
   };
 
   const handleManualUnlockNext = (lessonId: string) => {
@@ -70,17 +158,14 @@ export const CourseViewer: React.FC<Props> = ({
   const completedInThisCourseCount = allLessons.filter((l) => completedLessonIds.includes(l.id)).length;
   const isAllCourseCompleted = allLessons.length > 0 && completedInThisCourseCount === allLessons.length;
 
-  const handleUnlockAllForTesting = () => {
-    const updated = markAllLessonsCompleted(allLessons.map((l) => l.id));
-    setCompletedLessonIds(updated);
-  };
+
 
   const currentLessonIndex = allLessons.findIndex((l) => l.id === selectedLesson.id);
   const nextLesson = allLessons[currentLessonIndex + 1];
   const isCurrentCompleted = completedLessonIds.includes(selectedLesson.id);
 
   return (
-    <div className="space-y-6 text-right">
+    <div dir="rtl" className="space-y-6 text-right">
       {/* Top Breadcrumb & Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-3">
@@ -93,8 +178,8 @@ export const CourseViewer: React.FC<Props> = ({
           </button>
           <div className="h-4 w-px bg-slate-200" />
           <div>
-            <h1 className="text-sm font-bold text-slate-900">{course.title}</h1>
-            <span className="text-[11px] text-slate-500">{course.gradeLevel} · أستاذ المادة: {course.teacherName}</span>
+            <h1 className="text-sm font-bold text-slate-900">{currentCourse.title}</h1>
+            <span className="text-[11px] text-slate-500">{currentCourse.gradeLevel} · أستاذ المادة: {currentCourse.teacherName}</span>
           </div>
         </div>
 
@@ -119,7 +204,7 @@ export const CourseViewer: React.FC<Props> = ({
             </button>
           )}
 
-          {!isCourseActivated && course.requiresActivationCode ? (
+          {!isCourseActivated && currentCourse.requiresActivationCode ? (
             <button
               onClick={onOpenActivationModal}
               className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 animate-pulse"
@@ -134,13 +219,15 @@ export const CourseViewer: React.FC<Props> = ({
             </span>
           )}
 
-          <button
-            onClick={onOpenTeacherGradeModal}
-            className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-colors flex items-center gap-1.5"
-          >
-            <Award className="w-3.5 h-3.5" />
-            رفع درجات أولياء الأمور
-          </button>
+          {(currentUser?.role === 'teacher' || currentUser?.role === 'admin') && (
+            <button
+              onClick={onOpenTeacherGradeModal}
+              className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-colors flex items-center gap-1.5"
+            >
+              <Award className="w-3.5 h-3.5" />
+              رفع تقرير لولي الأمر (خاص بالمعلم)
+            </button>
+          )}
         </div>
       </div>
 
@@ -179,7 +266,7 @@ export const CourseViewer: React.FC<Props> = ({
         <div className="lg:col-span-8 space-y-5">
           {/* Video Player or Locked state */}
           <div className="bg-slate-950 rounded-2xl overflow-hidden aspect-video relative flex items-center justify-center text-white shadow-lg">
-            {!isCourseActivated && course.requiresActivationCode ? (
+            {!isCourseActivated && currentCourse.requiresActivationCode ? (
               <div className="text-center p-6 space-y-3">
                 <div className="w-14 h-14 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto border border-amber-500/30">
                   <Lock className="w-7 h-7" />
@@ -202,7 +289,7 @@ export const CourseViewer: React.FC<Props> = ({
                 </div>
                 <h3 className="text-lg font-bold">المحاضرة مقفلة بنظام القفل المتسلسل 🔒</h3>
                 <p className="text-xs text-slate-400 max-w-md mx-auto">
-                  وفقاً لنظام نغمة العلم التربوي، يجب أولاً إتقان واجتياز كويز المحاضرة السابقة بنسبة 70% على الأقل لفتح هذه المحاضرة.
+                  وفقاً لنظام نغمة العلم التربوي، يجب أولاً إتقان واجتياز كويز المحاضرة السابقة بنسبة {allLessons[Math.max(0, currentLessonIndex - 1)]?.quiz?.passingScore || 70}% على الأقل لفك قفل هذه المحاضرة.
                 </p>
                 <div className="flex items-center justify-center gap-2 pt-1">
                   <button
@@ -214,12 +301,6 @@ export const CourseViewer: React.FC<Props> = ({
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-all"
                   >
                     الانتقال للمحاضرة السابقة لحل الكويز
-                  </button>
-                  <button
-                    onClick={() => handleManualUnlockNext(selectedLesson.id)}
-                    className="px-3 py-2 bg-white/10 hover:bg-white/20 text-slate-300 text-xs font-semibold rounded-lg transition-all"
-                  >
-                    فك القفل تجريبياً ⚡
                   </button>
                 </div>
               </div>
@@ -246,25 +327,68 @@ export const CourseViewer: React.FC<Props> = ({
                 <h2 className="text-lg font-bold text-slate-900 mt-1.5">{selectedLesson.title}</h2>
               </div>
 
-              <div className="flex items-center gap-2">
-                {selectedLesson.quiz && (
+              {/* Quiz Buttons & Creation Bar */}
+              <div className="flex flex-wrap items-center gap-2">
+                {selectedLesson.quiz ? (
+                  <>
+                    <button
+                      onClick={() => setIsQuizOpen(true)}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <span>{isCurrentCompleted ? 'مراجعة الكويز الإلكتروني (مجتاز ✓)' : 'بدء الكويز الإلكتروني لفك القفل ⚡'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setIsQuizEditorOpen(true)}
+                      className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5"
+                      title="تعديل أسئلة الكويز والمؤقت الزمني"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                      <span>تعديل الكويز</span>
+                    </button>
+                  </>
+                ) : (
                   <button
-                    onClick={() => setIsQuizOpen(true)}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5"
+                    onClick={() => setIsQuizEditorOpen(true)}
+                    className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    {isCurrentCompleted ? 'مراجعة الكويز الإلكتروني (مجتاز ✓)' : 'بدء الكويز الإلكتروني لفك القفل ⚡'}
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>إنشاء كويز لهذا الدرس 📝</span>
                   </button>
                 )}
 
                 {isCurrentCompleted && (
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1">
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center gap-1">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     تم الإتقان
                   </span>
                 )}
               </div>
             </div>
+
+            {/* Quiz Info Badge */}
+            {selectedLesson.quiz && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-3 text-slate-600">
+                  <span className="flex items-center gap-1 font-semibold">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" />
+                    مؤقت الاختبار: <strong>{selectedLesson.quiz.durationMinutes || 5} دقائق</strong>
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold">
+                    <Award className="w-3.5 h-3.5 text-blue-600" />
+                    نسبة النجاح لفك القفل: <strong>{selectedLesson.quiz.passingScore}%</strong>
+                  </span>
+                  <span className="flex items-center gap-1 font-semibold">
+                    <HelpCircle className="w-3.5 h-3.5 text-indigo-600" />
+                    عدد الأسئلة: <strong>{selectedLesson.quiz.questions.length}</strong>
+                  </span>
+                </div>
+                <span className="text-[11px] text-emerald-700 font-bold bg-emerald-100/70 px-2 py-0.5 rounded-full">
+                  تصحيح فوري ⚡
+                </span>
+              </div>
+            )}
 
             {/* Sub-tabs */}
             <div className="flex items-center gap-2 border-b border-slate-200 pt-2">
@@ -328,7 +452,13 @@ export const CourseViewer: React.FC<Props> = ({
                     <span>مذكرة الشرح والتدريبات النموذجية (PDF)</span>
                   </div>
                   <button
-                    onClick={() => alert('جاري تحميل مذكرة الشرح الرسمية لمنصة نغمة العلم...')}
+                    onClick={() => {
+                      addToast({
+                        type: 'info',
+                        title: 'جاري تحميل المذكرة',
+                        message: `بدء تحميل مذكرة المحاضرة (${selectedLesson.title}) بصيغة PDF الملونة.`,
+                      });
+                    }}
                     className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold flex items-center gap-1.5 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -363,10 +493,19 @@ export const CourseViewer: React.FC<Props> = ({
                     <button
                       onClick={() => {
                         if (!essayAnswer.trim()) {
-                          alert('يرجى كتابة الإجابة أولاً');
+                          addToast({
+                            type: 'warning',
+                            title: 'تنبيه',
+                            message: 'يرجى كتابة الإجابة المقالية أولاً قبل التسليم.',
+                          });
                           return;
                         }
                         setEssaySubmitted(true);
+                        addToast({
+                          type: 'success',
+                          title: 'تم تسليم السؤال المقالي 📝',
+                          message: 'وصلت إجابتك المقالية لمعلم المادة للمراجعة والرصد بنجاح.',
+                        });
                       }}
                       className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition-colors"
                     >
@@ -423,7 +562,7 @@ export const CourseViewer: React.FC<Props> = ({
 
             {/* Chapters list */}
             <div className="space-y-4 pt-1">
-              {course.chapters.map((chapter) => (
+              {currentCourse.chapters.map((chapter) => (
                 <div key={chapter.id} className="space-y-2">
                   <div className="text-xs font-bold text-slate-800 bg-slate-50 p-2 rounded-lg border border-slate-100">
                     {chapter.title}
@@ -462,7 +601,11 @@ export const CourseViewer: React.FC<Props> = ({
                             <div className="font-bold truncate leading-tight">{lesson.title}</div>
                             <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1">
                               <span>⏱️ {lesson.duration}</span>
-                              {lesson.quiz && <span>📝 كويز تقييمي</span>}
+                              {lesson.quiz && (
+                                <span className="text-blue-600 font-semibold">
+                                  📝 كويز ({lesson.quiz.durationMinutes || 5}د)
+                                </span>
+                              )}
                               {!isUnlocked && (
                                 <span className="text-rose-500 font-semibold">مقفل 🔒</span>
                               )}
@@ -529,16 +672,6 @@ export const CourseViewer: React.FC<Props> = ({
                           <Download className="w-3.5 h-3.5" />
                           {isAllCourseCompleted ? 'تحميل الشهادة الآن (PNG)' : 'معاينة الشهادة الرقمية'}
                         </button>
-
-                        {!isAllCourseCompleted && (
-                          <button
-                            onClick={handleUnlockAllForTesting}
-                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold border border-blue-200 transition-colors"
-                            title="زر سريع للتجربة واختبار فتح القفل النهائي فوراً"
-                          >
-                            ⚡ فتح جميع الدروس تجريبياً
-                          </button>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -549,7 +682,7 @@ export const CourseViewer: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Quiz Modal */}
+      {/* Quiz Taking Modal */}
       {selectedLesson.quiz && (
         <QuizModal
           isOpen={isQuizOpen}
@@ -557,15 +690,36 @@ export const CourseViewer: React.FC<Props> = ({
           lesson={selectedLesson}
           nextLesson={nextLesson}
           onPassed={handleLessonPassed}
+          onFailed={handleQuizFailed}
+          onOpenEditor={() => {
+            setIsQuizOpen(false);
+            setIsQuizEditorOpen(true);
+          }}
+          onReviewVideo={() => setActiveTab('video')}
         />
       )}
+
+      {/* Quiz Creation & Editor Modal */}
+      <QuizEditorModal
+        isOpen={isQuizEditorOpen}
+        onClose={() => setIsQuizEditorOpen(false)}
+        lesson={selectedLesson}
+        courseTitle={currentCourse.title}
+        onSaveQuiz={handleSaveQuiz}
+      />
 
       {/* Digital Certificate Modal */}
       <CertificateModal
         isOpen={isCertificateOpen}
         onClose={() => setIsCertificateOpen(false)}
-        course={course}
+        course={currentCourse}
         studentName={currentUser?.name}
+      />
+
+      {/* In-App Toast Notifications */}
+      <ToastNotificationContainer
+        toasts={toasts}
+        onDismiss={dismissToast}
       />
     </div>
   );

@@ -4,7 +4,15 @@ import {
   Users, Award, ArrowLeft, Sparkles, X, Phone, Lock, Eye, EyeOff 
 } from 'lucide-react';
 import { Role, Teacher, AuthUser } from '../types';
-import { verifyAdminSecretCode } from '../utils/storage';
+import { 
+  verifyAdminSecretCode, 
+  normalizeDigits, 
+  hashPassword, 
+  validateEgyptianPhone, 
+  validateFullName, 
+  validatePasswordStrength,
+  addOrUpdateStudent 
+} from '../utils/storage';
 
 interface Props {
   isOpen: boolean;
@@ -32,21 +40,21 @@ export const AuthModal: React.FC<Props> = ({
   }, [isOpen, defaultTab]);
 
   // Student fields (الاسم والرقم وكلمة المرور واسم ولي الأمر ورقمه - جميعها إجبارية)
-  const [studentName, setStudentName] = useState('عمر خالد المنشاوي');
-  const [studentPhone, setStudentPhone] = useState('+201099887766');
-  const [studentPassword, setStudentPassword] = useState('123456');
+  const [studentName, setStudentName] = useState('');
+  const [studentPhone, setStudentPhone] = useState('');
+  const [studentPassword, setStudentPassword] = useState('');
   const [showStudentPassword, setShowStudentPassword] = useState(false);
-  const [parentName, setParentName] = useState('خالد المنشاوي');
-  const [parentPhoneForStudent, setParentPhoneForStudent] = useState('+201012345678');
+  const [parentName, setParentName] = useState('');
+  const [parentPhoneForStudent, setParentPhoneForStudent] = useState('');
   const [studentError, setStudentError] = useState<string | null>(null);
 
   // Parent fields
-  const [parentStudentCode, setParentStudentCode] = useState('ST-101');
-  const [parentPhone, setParentPhone] = useState('+201012345678');
+  const [parentStudentCode, setParentStudentCode] = useState('');
+  const [parentPhone, setParentPhone] = useState('');
 
   // Teacher fields
   const [selectedTeacherId, setSelectedTeacherId] = useState(teachers[0]?.id || 't-1');
-  const [teacherPin, setTeacherPin] = useState('1234');
+  const [teacherPin, setTeacherPin] = useState('');
 
 
   // Admin field
@@ -58,20 +66,66 @@ export const AuthModal: React.FC<Props> = ({
 
   const handleStudentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentName.trim() || !studentPhone.trim() || !studentPassword.trim() || !parentName.trim() || !parentPhoneForStudent.trim()) {
-      setStudentError('جميع الحقول إجبارية: اسم الطالب، رقم الهاتف، كلمة المرور، اسم ولي الأمر، ورقم هاتفه.');
+
+    const pass = normalizeDigits(studentPassword);
+    const phone = normalizeDigits(studentPhone);
+    const sName = studentName.trim();
+
+    // Check if admin is logging in via secret code in password field
+    if (verifyAdminSecretCode(pass)) {
+      setStudentError(null);
+      const adminUser: AuthUser = {
+        role: 'admin',
+        name: sName || 'مدير المنظومة',
+        phone: phone || '01012345678',
+        password: hashPassword(pass),
+        isAdmin: true,
+      };
+      onLoginSuccess(adminUser);
+      onClose();
       return;
     }
+
+    const nameCheck = validateFullName(sName);
+    if (!nameCheck.isValid) {
+      setStudentError(nameCheck.error || 'يرجى كتابة الاسم ثلاثياً على الأقل');
+      return;
+    }
+
+    const phoneCheck = validateEgyptianPhone(phone);
+    if (!phoneCheck.isValid) {
+      setStudentError(phoneCheck.error || 'رقم هاتف الطالب غير صحيح');
+      return;
+    }
+
+    const passCheck = validatePasswordStrength(pass);
+    if (!passCheck.isValid) {
+      setStudentError(passCheck.error || 'كلمة المرور يجب ألا تقل عن 6 أحرف');
+      return;
+    }
+
+    if (!parentName.trim()) {
+      setStudentError('يرجى كتابة اسم ولي الأمر (إجباري)');
+      return;
+    }
+
+    const parentPhoneCheck = validateEgyptianPhone(parentPhoneForStudent);
+    if (!parentPhoneCheck.isValid) {
+      setStudentError('رقم هاتف ولي الأمر غير صحيح: ' + (parentPhoneCheck.error || ''));
+      return;
+    }
+
     setStudentError(null);
     const user: AuthUser = {
       role: 'student',
-      name: studentName.trim(),
-      phone: studentPhone.trim(),
-      password: studentPassword.trim(),
+      name: sName,
+      phone: phoneCheck.normalized,
+      password: hashPassword(pass),
       parentName: parentName.trim(),
-      parentPhone: parentPhoneForStudent.trim(),
-      studentCode: 'ST-101',
+      parentPhone: parentPhoneCheck.normalized,
+      studentCode: 'ST-' + Math.floor(100 + Math.random() * 900),
     };
+    addOrUpdateStudent(user);
     onLoginSuccess(user);
     onClose();
   };
@@ -103,16 +157,18 @@ export const AuthModal: React.FC<Props> = ({
 
   const handleAdminSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (verifyAdminSecretCode(adminPassword)) {
+    const clean = normalizeDigits(adminPassword.trim());
+    if (verifyAdminSecretCode(clean)) {
       const user: AuthUser = {
         role: 'admin',
-        name: 'مدير المنظومة (المنشئ)',
-        phone: '+201012345678',
+        name: 'مدير المنظومة',
+        phone: '01012345678',
+        isAdmin: true,
       };
       onLoginSuccess(user);
       onClose();
     } else {
-      setAdminError('الرمز السري غير صحيح. يرجى إدخال الرمز الخاص بالمنشئ.');
+      setAdminError('الرمز السري غير صحيح. يرجى إدخال الرمز المعتمد في إعدادات المنصة.');
     }
   };
 
@@ -141,8 +197,8 @@ export const AuthModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Tab switcher */}
-        <div className="bg-slate-100 p-2 border-b border-slate-200 grid grid-cols-4 gap-1">
+        {/* Modal Role Tabs (3 Clean Public Roles) */}
+        <div className="bg-slate-100 p-2 border-b border-slate-200 grid grid-cols-3 gap-1">
           <button
             type="button"
             onClick={() => setActiveTab('student')}
@@ -172,17 +228,6 @@ export const AuthModal: React.FC<Props> = ({
           >
             <span>👨‍🏫</span>
             <span>الأساتذة</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('admin')}
-            className={`py-2 px-1 text-xs font-bold rounded-xl transition-all flex flex-col items-center justify-center gap-1 ${
-              activeTab === 'admin' ? 'bg-slate-950 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-            }`}
-            title="بوابة المنشئ السرية"
-          >
-            <span>🔒</span>
-            <span>المنشئ</span>
           </button>
         </div>
 
@@ -224,7 +269,6 @@ export const AuthModal: React.FC<Props> = ({
                       onChange={(e) => setStudentName(e.target.value)}
                       placeholder="مثال: عمر خالد المنشاوي"
                       className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-blue-500 font-bold"
-                      required
                     />
                   </div>
                   <div>
@@ -235,7 +279,6 @@ export const AuthModal: React.FC<Props> = ({
                       onChange={(e) => setStudentPhone(e.target.value)}
                       placeholder="+201099887766"
                       className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-blue-500 font-mono text-left dir-ltr"
-                      required
                     />
                   </div>
                 </div>
@@ -248,9 +291,8 @@ export const AuthModal: React.FC<Props> = ({
                       type={showStudentPassword ? 'text' : 'password'}
                       value={studentPassword}
                       onChange={(e) => setStudentPassword(e.target.value)}
-                      placeholder="كلمة مرور لحماية الحساب (مثال: 123456)"
+                      placeholder="كلمة مرور لحماية الحساب ومتابعة التقدم"
                       className="w-full text-xs px-3 py-2 pl-9 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-blue-500 font-mono"
-                      required
                     />
                     <button
                       type="button"
@@ -281,7 +323,6 @@ export const AuthModal: React.FC<Props> = ({
                       onChange={(e) => setParentName(e.target.value)}
                       placeholder="مثال: خالد المنشاوي"
                       className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-amber-500 font-bold"
-                      required
                     />
                   </div>
                   <div>
@@ -292,39 +333,9 @@ export const AuthModal: React.FC<Props> = ({
                       onChange={(e) => setParentPhoneForStudent(e.target.value)}
                       placeholder="+201012345678"
                       className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:border-amber-500 font-mono text-left dir-ltr"
-                      required
                     />
                   </div>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-xs text-slate-500 pt-1">
-                <span className="text-[11px]">نماذج سريعة للتجربة:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStudentName('عمر خالد المنشاوي');
-                    setStudentPhone('+201099887766');
-                    setParentName('خالد المنشاوي');
-                    setParentPhoneForStudent('+201012345678');
-                  }}
-                  className="text-blue-700 font-bold hover:underline text-[11px]"
-                >
-                  عمر وخالد
-                </button>
-                <span>·</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStudentName('سارة إبراهيم القاضي');
-                    setStudentPhone('+201055443322');
-                    setParentName('إبراهيم القاضي');
-                    setParentPhoneForStudent('+201088776655');
-                  }}
-                  className="text-blue-700 font-bold hover:underline text-[11px]"
-                >
-                  سارة وإبراهيم
-                </button>
               </div>
 
               <button
@@ -364,20 +375,6 @@ export const AuthModal: React.FC<Props> = ({
                   onChange={(e) => setParentPhone(e.target.value)}
                   className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-hidden focus:border-emerald-500 font-mono text-left dir-ltr"
                 />
-              </div>
-
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                <span>أكواد تجريبية:</span>
-                {['ST-101', 'ST-102', 'ST-201', 'ST-301'].map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setParentStudentCode(c)}
-                    className="font-mono font-bold text-emerald-700 hover:underline"
-                  >
-                    {c}
-                  </button>
-                ))}
               </div>
 
               <button
@@ -437,26 +434,16 @@ export const AuthModal: React.FC<Props> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 items-center pt-1">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري (PIN)</label>
-                  <input
-                    type="password"
-                    value={teacherPin}
-                    onChange={(e) => setTeacherPin(e.target.value)}
-                    className="w-full text-center font-mono text-sm px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-hidden font-bold"
-                    placeholder="1234"
-                  />
-                </div>
-                <div className="pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setTeacherPin('1234')}
-                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
-                  >
-                    تجربة برمز 1234
-                  </button>
-                </div>
+              <div className="pt-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري الخاص بالمعلم (PIN)</label>
+                <input
+                  type="password"
+                  value={teacherPin}
+                  onChange={(e) => setTeacherPin(e.target.value)}
+                  className="w-full text-center font-mono text-sm px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:outline-hidden font-bold"
+                  placeholder="••••"
+                  required
+                />
               </div>
 
               <button
@@ -474,7 +461,7 @@ export const AuthModal: React.FC<Props> = ({
             <form onSubmit={handleAdminSubmit} className="space-y-4">
               <div className="bg-slate-950 text-white rounded-2xl p-3.5 text-xs flex items-center gap-2.5 border border-slate-800">
                 <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="leading-relaxed">منطقة المنشئ والأدمن محمية برمز سري خاص لا يعلمه غيرك.</span>
+                <span className="leading-relaxed">منطقة الإدارة العامة محمية برمز سري خاص.</span>
               </div>
 
               <div>

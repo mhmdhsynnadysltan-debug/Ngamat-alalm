@@ -164,7 +164,7 @@ export const TeacherVoucherPrinterModal: React.FC<Props> = ({
                     {/* Top row */}
                     <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
                       <div className="flex items-center gap-2">
-                        <img src={teacher.avatar} alt="" className="w-9 h-9 rounded-full object-cover border border-amber-400" />
+                        <img src={teacher.avatar} alt={teacher.name} className="w-9 h-9 rounded-full object-cover border border-amber-400" />
                         <div>
                           <span className="text-[10px] text-amber-700 font-bold block">منصة نغمة العلم 🎓</span>
                           <strong className="text-xs text-slate-900 block">{teacher.name}</strong>

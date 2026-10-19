@@ -24,7 +24,7 @@ export const ActivationCodeModal: React.FC<Props> = ({
 
   if (!isOpen || !targetCourse) return null;
 
-  const availableCodes = getStoredActivationCodes().filter(c => c.courseId === targetCourse.id || c.code === 'VIP-FREE-PASS');
+
 
   const handleValidate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,10 +73,7 @@ export const ActivationCodeModal: React.FC<Props> = ({
     }
   };
 
-  const handleQuickFill = (sampleCode: string) => {
-    setCode(sampleCode);
-    setError(null);
-  };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -148,27 +145,7 @@ export const ActivationCodeModal: React.FC<Props> = ({
                   </div>
                 )}
 
-                {/* Demo codes fast test */}
-                {availableCodes.length > 0 && (
-                  <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 mb-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                      <span>أكواد تجريبية صالحة فوراً للتجربة:</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {availableCodes.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => handleQuickFill(c.code)}
-                          className="px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded text-xs font-mono font-bold text-amber-900 transition-colors shadow-2xs"
-                        >
-                          {c.code}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+
 
                 <button
                   type="submit"

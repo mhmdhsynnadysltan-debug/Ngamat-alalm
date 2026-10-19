@@ -240,12 +240,12 @@ export const StagesBrowser: React.FC<Props> = ({
 
                 {!isActivated && course.requiresActivationCode && (
                   <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
-                    <span>متاح كود تجريبي مجاناً</span>
+                    <span>يلزم كود تفعيل الكورس</span>
                     <button
                       onClick={() => onOpenActivationModal(course)}
                       className="text-amber-700 font-bold hover:underline"
                     >
-                      تفعيل سريع ⚡
+                      تفعيل الكود ⚡
                     </button>
                   </div>
                 )}

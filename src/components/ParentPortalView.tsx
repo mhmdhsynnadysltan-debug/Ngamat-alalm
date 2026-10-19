@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { Search, UserCheck, Award, Calendar, CheckCircle2, AlertCircle, MessageSquare, Printer, Sparkles, BookOpen } from 'lucide-react';
-import { StudentGradeRecord } from '../types';
+import { StudentGradeRecord, AuthUser } from '../types';
 import { getStoredGradeRecords } from '../utils/storage';
 
 interface Props {
   onOpenTeacherGradeModal: () => void;
   onOpenWhatsApp: (topic?: string) => void;
+  currentUser?: AuthUser | null;
 }
 
-export const ParentPortalView: React.FC<Props> = ({ onOpenTeacherGradeModal, onOpenWhatsApp }) => {
+export const ParentPortalView: React.FC<Props> = ({ onOpenTeacherGradeModal, onOpenWhatsApp, currentUser }) => {
+  const isTeacherOrAdmin = currentUser?.role === 'teacher' || currentUser?.role === 'admin';
   const [records] = useState<StudentGradeRecord[]>(getStoredGradeRecords());
-  const [searchTerm, setSearchTerm] = useState('ST-101'); // default search so data is displayed immediately
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<StudentGradeRecord | null>(records[0] || null);
 
   const filtered = records.filter(
@@ -39,15 +41,17 @@ export const ParentPortalView: React.FC<Props> = ({ onOpenTeacherGradeModal, onO
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={onOpenTeacherGradeModal}
-              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-lg transition-all flex items-center gap-1.5"
-            >
-              <Award className="w-4 h-4" />
-              أداة المعلم لرفع درجات جديدة 📊
-            </button>
-          </div>
+          {isTeacherOrAdmin && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={onOpenTeacherGradeModal}
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl shadow-lg transition-all flex items-center gap-1.5"
+              >
+                <Award className="w-4 h-4" />
+                أداة المعلم لرفع درجات جديدة (خاص بالمعلم) 📊
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Search bar for parents */}
@@ -62,19 +66,6 @@ export const ParentPortalView: React.FC<Props> = ({ onOpenTeacherGradeModal, onO
               className="w-full text-xs pr-10 pl-4 py-2.5 bg-white text-slate-900 rounded-xl focus:outline-hidden font-bold"
             />
           </div>
-
-          <div className="flex items-center gap-1.5 text-xs text-blue-200">
-            <span className="text-amber-300 font-bold">نماذج سريعة:</span>
-            {['ST-101', 'ST-102', 'ST-201', 'ST-301'].map((code) => (
-              <button
-                key={code}
-                onClick={() => setSearchTerm(code)}
-                className="px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded font-mono text-[11px] font-bold text-white transition-colors"
-              >
-                {code}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -88,7 +79,26 @@ export const ParentPortalView: React.FC<Props> = ({ onOpenTeacherGradeModal, onO
           </div>
 
           <div className="space-y-2.5">
-            {filtered.map((record) => {
+            {filtered.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
+                <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-500 mx-auto flex items-center justify-center">
+                  <Search className="w-6 h-6" />
+                </div>
+                <h4 className="text-sm font-bold text-slate-800">لا توجد تقارير مطابقة لبحثك</h4>
+                <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                  تأكد من كتابة كود الطالب بدقة (مثل ST-101) أو رقم هاتف ولي الأمر.
+                </p>
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="text-xs text-blue-600 font-bold hover:underline"
+                  >
+                    إلغاء البحث وعرض كافة التقارير
+                  </button>
+                )}
+              </div>
+            ) : (
+              filtered.map((record) => {
               const isSelected = selectedRecord?.id === record.id;
               return (
                 <div
@@ -128,13 +138,7 @@ export const ParentPortalView: React.FC<Props> = ({ onOpenTeacherGradeModal, onO
                   </div>
                 </div>
               );
-            })}
-
-            {filtered.length === 0 && (
-              <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-400 text-xs">
-                لم يتم العثور على تقارير مطابقة لبحثك. تأكد من كود الطالب أو تواصل مع الدعم الفني.
-              </div>
-            )}
+            }))}
           </div>
         </div>
 

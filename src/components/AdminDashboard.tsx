@@ -4,11 +4,12 @@ import {
   Settings, CheckCircle, Search, Sparkles, RefreshCw, Layers, 
   FileText, Shield, Save, Eye, EyeOff, Lock, Check, Phone,
   GraduationCap, Bell, Megaphone, UserPlus, Star, ChevronDown,
-  Globe, AlertCircle, FileCheck, Sliders, Smartphone
+  Globe, AlertCircle, FileCheck, Sliders, Smartphone, Palette, Image as ImageIcon,
+  UserCheck, UserX, Clock, AlertOctagon, Filter
 } from 'lucide-react';
 import { 
   Course, Teacher, ActivationCode, StudentGradeRecord, 
-  ActivatedCodeLog, LeaderboardStudent, AuthUser, EducationalStage 
+  ActivatedCodeLog, LeaderboardStudent, AuthUser, EducationalStage, StudentStatus 
 } from '../types';
 import { 
   getStoredCourses, saveStoredCourses, 
@@ -19,16 +20,24 @@ import {
   getStoredLeaderboard, saveStoredLeaderboard,
   getAdminSecretCode, setAdminSecretCode,
   getPlatformSettings, savePlatformSettings, PlatformSettings,
-  getRegisteredStudents, saveRegisteredStudents, deleteRegisteredStudent, addOrUpdateStudent
+  getRegisteredStudents, saveRegisteredStudents, deleteRegisteredStudent, addOrUpdateStudent, updateStudentStatus
 } from '../utils/storage';
 
 interface Props {
   onUpdateCourses: () => void;
   onPreviewCourse: (course: Course) => void;
   onOpenQuickAccess: () => void;
+  onViewStudentProfile?: (student: AuthUser) => void;
+  onLockAdmin?: () => void;
 }
 
-export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCourse, onOpenQuickAccess }) => {
+export const AdminDashboard: React.FC<Props> = ({ 
+  onUpdateCourses, 
+  onPreviewCourse, 
+  onOpenQuickAccess,
+  onViewStudentProfile,
+  onLockAdmin
+}) => {
   // Main Data States
   const [courses, setCourses] = useState<Course[]>(getStoredCourses());
   const [codes, setCodes] = useState<ActivationCode[]>(getStoredActivationCodes());
@@ -41,7 +50,7 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
 
   // Dashboard Navigation Tab
   const [activeTab, setActiveTab] = useState<
-    'settings' | 'courses' | 'teachers' | 'students' | 'grades' | 'tracking' | 'codes' | 'leaderboard' | 'security'
+    'settings' | 'background' | 'courses' | 'teachers' | 'students' | 'grades' | 'tracking' | 'codes' | 'leaderboard' | 'security'
   >('settings');
 
   // Admin Passcode & Security State
@@ -62,9 +71,11 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
 
-  // Student Modal
+  // Student Modal & Filtering
   const [editingStudent, setEditingStudent] = useState<AuthUser | null>(null);
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
+  const [studentStatusFilter, setStudentStatusFilter] = useState<'all' | StudentStatus>('all');
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
 
   // Grade Modal
   const [editingGrade, setEditingGrade] = useState<StudentGradeRecord | null>(null);
@@ -188,6 +199,13 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
       setStudents(getRegisteredStudents());
       showToast(`تم حذف حساب الطالب "${name}" بنجاح`);
     }
+  };
+
+  const handleQuickStatusChange = (student: AuthUser, newStatus: StudentStatus) => {
+    updateStudentStatus(student.phone, newStatus);
+    setStudents(getRegisteredStudents());
+    const label = newStatus === 'active' ? 'نشط 🟢' : newStatus === 'pending' ? 'قيد المراجعة 🟡' : 'موقوف 🔴';
+    showToast(`تم تغيير حالة الطالب (${student.name}) إلى "${label}" بنجاح!`);
   };
 
   // 5. Grade Record Handlers
@@ -319,8 +337,11 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
               <Shield className="w-3.5 h-3.5 text-amber-400" />
               <span>صلاحيات المنشئ الكاملة المطلقة 👑</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              لوحة التحكم الشاملة وإدارة المنظومة التعليمية
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-2 group cursor-default">
+              <span>لوحة تحكم الأدمن</span>
+              <span className="inline-block transition-all duration-300 ease-in-out hover:animate-bounce group-hover:scale-125 group-hover:rotate-12">
+                🎓
+              </span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
               بصفتك المنشئ المعتمد، لديك الصلاحية الكاملة لتعديل أو إضافة أو حذف أي شيء في المنصة: هُوِيّة المنصة، الأساتذة، الكورسات والمحاضرات، حسابات وكلمات مرور الطلاب، كشوف الدرجات، أكواد التفعيل، لوحة الشرف، والرمز السري.
@@ -344,6 +365,17 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
               <Sparkles className="w-4 h-4" />
               <span>الوصول السريع ⚡</span>
             </button>
+
+            {onLockAdmin && (
+              <button
+                onClick={onLockAdmin}
+                className="px-4 py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 border border-rose-500/40 shadow-sm"
+                title="قفل لوحة الأدمن والخروج (يتطلب الرمز السري للدخول مجدداً)"
+              >
+                <Lock className="w-4 h-4 text-rose-400" />
+                <span>قفل اللوحة 🔒</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -401,6 +433,18 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
         >
           <Sliders className="w-4 h-4" />
           <span>إعدادات وهُوِيّة المنصة ⚙️</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('background')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            activeTab === 'background'
+              ? 'bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 text-white font-black shadow-md'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Palette className="w-4 h-4 text-purple-400" />
+          <span>التحكم في خلفية المنصة 🎨</span>
         </button>
 
         <button
@@ -635,6 +679,559 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
       )}
 
       {/* ========================================================================= */}
+      {/* TAB: PLATFORM BACKGROUND CONTROL (التحكم في خلفية المنصة ومظهرها) */}
+      {/* ========================================================================= */}
+      {activeTab === 'background' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs space-y-8">
+            {/* Header & Actions */}
+            <div className="border-b border-slate-100 pb-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-xs font-black mb-2">
+                  <Palette className="w-3.5 h-3.5 text-purple-600" />
+                  <span>استوديو تخصيص مظهر وخلفية المنصة 🎨</span>
+                </div>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                  التحكم الكامل في خلفية ومظهر منصة {settings.platformName}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                  بصفتك المنشئ والمتحكم بالمنظومة، يمكنك اختيار أي نمط خلفية: أنماط تعليمية جاهزة فاخرة، ألوان سادة مريحة للعين، تدرجات لونية عصرية، أو وضع رابط صورة مخصصة مع سلايدرات الضبابية والشفافية. يتم الحفظ في التخزين المحلي وتطبيق التغييرات فوراً.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const defaultSettings: PlatformSettings = {
+                      ...settings,
+                      backgroundMode: 'preset',
+                      backgroundPreset: 'default',
+                      backgroundColor: '#0f172a',
+                      backgroundGradient: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
+                      customBackgroundUrl: '',
+                      backgroundBlur: 0,
+                      backgroundOpacity: 100,
+                      showFloatingSymbols: true,
+                      showMeshOrbs: true,
+                      showGridTexture: true,
+                    };
+                    setSettings(defaultSettings);
+                    savePlatformSettings(defaultSettings);
+                    showToast('تمت استعادة الخلفية الافتراضية بنجاح 🔄');
+                  }}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>الافتراضي 🔄</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    savePlatformSettings(settings);
+                    showToast('تم تطبيق وحفظ مظهر الخلفية الجديد فورياً على كامل المنصة 🚀🎨');
+                  }}
+                  className="px-6 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-700 hover:to-indigo-800 text-white font-black text-xs rounded-xl shadow-lg shadow-purple-500/25 transition-all flex items-center gap-2 transform hover:scale-105 active:scale-95 cursor-pointer"
+                >
+                  <CheckCircle className="w-4 h-4 text-emerald-300" />
+                  <span>تطبيق وحفظ الخلفية فوراً 🚀</span>
+                </button>
+              </div>
+            </div>
+
+            {/* LIVE PREVIEW BOX */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Eye className="w-4 h-4 text-purple-600" />
+                  <span>معاينة حية فورية لشكل المنصة بالخلفية المختارة:</span>
+                </span>
+                <span className="text-[11px] text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full font-bold">
+                  {settings.backgroundMode === 'preset' && `النمط الجاهز: ${settings.backgroundPreset || 'الافتراضي'}`}
+                  {settings.backgroundMode === 'solid' && `لون سادة: ${settings.backgroundColor}`}
+                  {settings.backgroundMode === 'gradient' && 'تدرج لوني مخصص'}
+                  {settings.backgroundMode === 'custom' && 'صورة خلفية مخصصة'}
+                </span>
+              </div>
+
+              {/* Miniature mockup window */}
+              <div className="rounded-2xl border-2 border-slate-300 overflow-hidden shadow-xl relative min-h-[190px] flex flex-col justify-between p-5 text-right transition-all">
+                {/* Embedded preview background */}
+                <div
+                  className="absolute inset-0 pointer-events-none transition-all duration-500"
+                  style={
+                    settings.backgroundMode === 'solid'
+                      ? { backgroundColor: settings.backgroundColor || '#0f172a' }
+                      : settings.backgroundMode === 'gradient'
+                      ? { background: settings.backgroundGradient || 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)' }
+                      : settings.backgroundMode === 'custom' && settings.customBackgroundUrl
+                      ? {
+                          backgroundImage: `url(${settings.customBackgroundUrl})`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          filter: settings.backgroundBlur > 0 ? `blur(${settings.backgroundBlur}px)` : undefined,
+                          opacity: (settings.backgroundOpacity ?? 100) / 100,
+                        }
+                      : settings.backgroundPreset === 'royalNavy'
+                      ? { background: 'linear-gradient(135deg, #070b19 0%, #0d1b3e 50%, #0a1128 100%)' }
+                      : settings.backgroundPreset === 'emeraldAcademic'
+                      ? { background: 'linear-gradient(135deg, #021a13 0%, #063828 50%, #022018 100%)' }
+                      : settings.backgroundPreset === 'midnightDark'
+                      ? { background: 'linear-gradient(135deg, #09090b 0%, #18181b 50%, #0f0f11 100%)' }
+                      : settings.backgroundPreset === 'warmCream'
+                      ? { background: '#fbf7ee' }
+                      : settings.backgroundPreset === 'sunsetIndigo'
+                      ? { background: 'linear-gradient(135deg, #130924 0%, #29124e 50%, #110820 100%)' }
+                      : settings.backgroundPreset === 'auroraBorealis'
+                      ? { background: 'linear-gradient(135deg, #03141b 0%, #0a2d33 50%, #061922 100%)' }
+                      : settings.backgroundPreset === 'cyberSlate'
+                      ? { background: 'linear-gradient(135deg, #0b1120 0%, #1e293b 50%, #0f172a 100%)' }
+                      : { background: '#f8fafc' }
+                  }
+                />
+
+                {/* Ambient Orbs in preview */}
+                {(settings.showMeshOrbs ?? true) && (
+                  <>
+                    <div className="absolute top-0 right-10 w-40 h-40 rounded-full blur-2xl opacity-40 bg-purple-500/30 pointer-events-none" />
+                    <div className="absolute bottom-0 left-10 w-40 h-40 rounded-full blur-2xl opacity-30 bg-blue-500/30 pointer-events-none" />
+                  </>
+                )}
+
+                {/* Floating Symbols in preview */}
+                {(settings.showFloatingSymbols ?? true) && (
+                  <div className="absolute inset-0 select-none font-serif text-3xl opacity-10 flex justify-between p-4 pointer-events-none text-slate-400">
+                    <span>∫</span>
+                    <span>∑</span>
+                    <span>π</span>
+                    <span>∞</span>
+                  </div>
+                )}
+
+                {/* Simulated Platform Content Header */}
+                <div className="relative z-10 flex items-center justify-between bg-white/90 backdrop-blur-md p-3 rounded-xl border border-white/40 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500 to-yellow-400 flex items-center justify-center text-slate-950 font-bold text-xs shadow-xs">
+                      🎓
+                    </div>
+                    <div>
+                      <span className="text-xs font-black text-slate-900 block">{settings.platformName}</span>
+                      <span className="text-[9px] text-slate-500 font-medium">{settings.platformSlogan}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">الأساتذة</span>
+                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold">الكورسات</span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">الدرجات</span>
+                  </div>
+                </div>
+
+                {/* Simulated Content Cards */}
+                <div className="relative z-10 grid grid-cols-3 gap-2.5 mt-3">
+                  <div className="bg-white/85 backdrop-blur-md p-2.5 rounded-xl border border-white/40 text-center shadow-xs">
+                    <span className="text-[10px] text-slate-500 block">المحاضرات</span>
+                    <span className="text-sm font-black text-amber-600 font-mono">+120</span>
+                  </div>
+                  <div className="bg-white/85 backdrop-blur-md p-2.5 rounded-xl border border-white/40 text-center shadow-xs">
+                    <span className="text-[10px] text-slate-500 block">الطلاب المتفوقين</span>
+                    <span className="text-sm font-black text-blue-600 font-mono">+15K</span>
+                  </div>
+                  <div className="bg-white/85 backdrop-blur-md p-2.5 rounded-xl border border-white/40 text-center shadow-xs">
+                    <span className="text-[10px] text-slate-500 block">نسبة النجاح</span>
+                    <span className="text-sm font-black text-emerald-600 font-mono">99.4%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* MODE SELECTION TABS */}
+            <div className="space-y-4">
+              <label className="block text-xs font-black text-slate-800">
+                اختر طريقة التحكم في الخلفية:
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {[
+                  { id: 'preset', title: 'أنماط جاهزة فاخرة ✨', desc: '8 قوالب أكاديمية مختارة بدقة' },
+                  { id: 'gradient', title: 'تدرجات لونية 🌈', desc: 'تدرجات عصرية غنية بالعمق' },
+                  { id: 'solid', title: 'ألوان سادة مريحة 🎨', desc: 'ألوان نقية وهادئة للعين' },
+                  { id: 'custom', title: 'صورة خلفية مخصصة 🖼️', desc: 'برابط صورة مع ضبابية وشفافية' },
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => {
+                      const updated = { ...settings, backgroundMode: mode.id as any };
+                      setSettings(updated);
+                      savePlatformSettings(updated);
+                    }}
+                    className={`p-3.5 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
+                      settings.backgroundMode === mode.id
+                        ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-500/20 shadow-xs'
+                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <span className={`text-xs font-black block ${settings.backgroundMode === mode.id ? 'text-purple-950' : 'text-slate-800'}`}>
+                      {mode.title}
+                    </span>
+                    <span className="text-[10px] text-slate-500 mt-1">{mode.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* SECTION 1: PRESETS */}
+            {settings.backgroundMode === 'preset' && (
+              <div className="space-y-3 pt-2">
+                <span className="block text-xs font-black text-slate-800">
+                  اختر من بين القوالب الجاهزة المصممة خصيصاً للمنصات التعليمية:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {[
+                    { id: 'royalNavy', title: 'الكحلي الملكي الفاخر 👑', previewBg: 'from-[#070b19] via-[#0d1b3e] to-[#0a1128]', tag: 'فخامة داكنة' },
+                    { id: 'emeraldAcademic', title: 'الزمردي الأكاديمي 🌿', previewBg: 'from-[#021a13] via-[#063828] to-[#022018]', tag: 'تركيز دراسي عالي' },
+                    { id: 'midnightDark', title: 'الأسود الملكي الفخم 🖤', previewBg: 'from-[#09090b] via-[#18181b] to-[#0f0f11]', tag: 'أوبسيديان مودرن' },
+                    { id: 'warmCream', title: 'ورق البردي / راحة العين 📜', previewBg: 'from-[#fbf7ee] via-[#f7f0df] to-[#fbf7ee]', tag: 'أقصى راحة للعين' },
+                    { id: 'sunsetIndigo', title: 'الغسق والنيلي الداكن 🌆', previewBg: 'from-[#130924] via-[#29124e] to-[#110820]', tag: 'فيوليت ملهم' },
+                    { id: 'auroraBorealis', title: 'الشفق القطبي 🌌', previewBg: 'from-[#03141b] via-[#0a2d33] to-[#061922]', tag: 'تيل وسماوي ساحر' },
+                    { id: 'cyberSlate', title: 'سليت تقني داكن 💻', previewBg: 'from-[#0b1120] via-[#1e293b] to-[#0f172a]', tag: 'أكاديمي عصري' },
+                    { id: 'default', title: 'المنظومة القياسية ⚪', previewBg: 'from-slate-50 via-blue-50/50 to-slate-100', tag: 'رمادي فاتح كلاسيكي' },
+                  ].map((p) => {
+                    const isSelected = settings.backgroundPreset === p.id;
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => {
+                          const updated = { ...settings, backgroundPreset: p.id, backgroundMode: 'preset' as const };
+                          setSettings(updated);
+                          savePlatformSettings(updated);
+                          showToast(`تم تفعيل قالب (${p.title}) بنجاح!`);
+                        }}
+                        className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-purple-50/70 border-purple-500 ring-2 ring-purple-500/30 shadow-md'
+                            : 'bg-white hover:bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <div className={`h-14 rounded-xl bg-gradient-to-r ${p.previewBg} border border-black/10 shadow-inner flex items-center justify-center mb-2.5`}>
+                          {isSelected && <span className="bg-white/90 text-purple-900 text-[10px] font-black px-2 py-0.5 rounded-full shadow-xs">مفعل حالياً ✓</span>}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-slate-900">{p.title}</h4>
+                          <span className="text-[10px] text-slate-500 font-medium">{p.tag}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 2: SOLID COLORS */}
+            {settings.backgroundMode === 'solid' && (
+              <div className="space-y-4 pt-2">
+                <span className="block text-xs font-black text-slate-800">
+                  اختر لوناً ساداً أو حدد درجتك المفضلة عبر أداة الألوان:
+                </span>
+
+                {/* Preset Solid Swatches */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+                  {[
+                    { color: '#0f172a', name: 'سليت داكن' },
+                    { color: '#0a1128', name: 'كحلي ليلي' },
+                    { color: '#022c22', name: 'زمردي ملكي' },
+                    { color: '#09090b', name: 'أسود فاحم' },
+                    { color: '#1e1b4b', name: 'نيلي عميق' },
+                    { color: '#fbf7ee', name: 'ورقي مريح' },
+                    { color: '#f8fafc', name: 'أبيض ناصع' },
+                    { color: '#1e293b', name: 'رمادي صلب' },
+                  ].map((swatch) => (
+                    <button
+                      key={swatch.color}
+                      type="button"
+                      onClick={() => {
+                        const updated = { ...settings, backgroundColor: swatch.color, backgroundMode: 'solid' as const };
+                        setSettings(updated);
+                        savePlatformSettings(updated);
+                        showToast(`تم اختيار لون ${swatch.name}!`);
+                      }}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${
+                        settings.backgroundColor === swatch.color
+                          ? 'border-purple-600 ring-2 ring-purple-400/40 shadow-xs'
+                          : 'border-slate-200 hover:scale-105'
+                      }`}
+                    >
+                      <div
+                        className="w-8 h-8 rounded-lg border border-black/15 shadow-inner"
+                        style={{ backgroundColor: swatch.color }}
+                      />
+                      <span className="text-[10px] font-bold text-slate-700">{swatch.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Custom Color Input */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={settings.backgroundColor || '#0f172a'}
+                      onChange={(e) => {
+                        const updated = { ...settings, backgroundColor: e.target.value, backgroundMode: 'solid' as const };
+                        setSettings(updated);
+                        savePlatformSettings(updated);
+                      }}
+                      className="w-12 h-12 rounded-xl cursor-pointer border border-slate-300 p-0.5 bg-white"
+                    />
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 block">منتقي الألوان الحر</span>
+                      <span className="text-[10px] text-slate-500">اختر أي درجة لون بدقة عبر عجلة الألوان</span>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={settings.backgroundColor || '#0f172a'}
+                    onChange={(e) => {
+                      const updated = { ...settings, backgroundColor: e.target.value, backgroundMode: 'solid' as const };
+                      setSettings(updated);
+                      savePlatformSettings(updated);
+                    }}
+                    placeholder="#0f172a"
+                    className="text-xs font-mono font-bold px-3 py-2 bg-white border border-slate-300 rounded-xl dir-ltr text-center w-32"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 3: GRADIENTS */}
+            {settings.backgroundMode === 'gradient' && (
+              <div className="space-y-4 pt-2">
+                <span className="block text-xs font-black text-slate-800">
+                  اختر تدرجاً لونياً عالي الجودة أو اكتب كود التدرج الخاص بك:
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {[
+                    { title: 'كحلي ملكي ونيلي', css: 'linear-gradient(135deg, #0a1128 0%, #1c2541 50%, #0b132b 100%)' },
+                    { title: 'زمردي غامق احترافي', css: 'linear-gradient(135deg, #022c22 0%, #064e3b 50%, #022018 100%)' },
+                    { title: 'أوبسيديان وأسود أنيق', css: 'linear-gradient(135deg, #09090b 0%, #18181b 50%, #0f172a 100%)' },
+                    { title: 'غسق بنفسجي ونيلي', css: 'linear-gradient(135deg, #1e1b4b 0%, #311042 50%, #0f172a 100%)' },
+                    { title: 'أورورا وتيل المحيط', css: 'linear-gradient(135deg, #042f2e 0%, #0f172a 50%, #064e3b 100%)' },
+                    { title: 'أزرق علمي ملكي', css: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #1d4ed8 100%)' },
+                    { title: 'رمادي أكاديمي فاتح', css: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%)' },
+                    { title: 'ورق كريمي دافئ', css: 'linear-gradient(135deg, #fdfbf7 0%, #f7f2e7 50%, #fbf7ee 100%)' },
+                  ].map((grad, i) => {
+                    const isSelected = settings.backgroundGradient === grad.css;
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => {
+                          const updated = { ...settings, backgroundGradient: grad.css, backgroundMode: 'gradient' as const };
+                          setSettings(updated);
+                          savePlatformSettings(updated);
+                          showToast(`تم تطبيق التدرج: ${grad.title}!`);
+                        }}
+                        className={`p-3 rounded-2xl border cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-purple-600 ring-2 ring-purple-400/30 bg-purple-50/50 shadow-sm'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <div
+                          className="h-12 rounded-xl mb-2 shadow-inner border border-black/10 flex items-center justify-center"
+                          style={{ background: grad.css }}
+                        >
+                          {isSelected && <span className="bg-white/90 text-purple-950 text-[10px] font-black px-2 py-0.5 rounded-full">مفعل ✓</span>}
+                        </div>
+                        <span className="text-xs font-bold text-slate-800 block text-center truncate">{grad.title}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Custom CSS gradient string */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <label className="text-xs font-bold text-slate-800 block">
+                    كود التدرج اللوني (CSS linear-gradient):
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.backgroundGradient || ''}
+                    onChange={(e) => {
+                      const updated = { ...settings, backgroundGradient: e.target.value, backgroundMode: 'gradient' as const };
+                      setSettings(updated);
+                      savePlatformSettings(updated);
+                    }}
+                    placeholder="linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)"
+                    className="w-full text-xs font-mono px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl dir-ltr focus:outline-hidden focus:border-purple-500"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 4: CUSTOM IMAGE WALLPAPER */}
+            {settings.backgroundMode === 'custom' && (
+              <div className="space-y-4 pt-2">
+                <span className="block text-xs font-black text-slate-800">
+                  حدد رابط صورة خلفية للمنصة أو اختر من الصور الأكاديمية المقترحة:
+                </span>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 block">رابط الصورة المباشر (Image URL):</label>
+                  <input
+                    type="url"
+                    value={settings.customBackgroundUrl || ''}
+                    onChange={(e) => {
+                      const updated = { ...settings, customBackgroundUrl: e.target.value, backgroundMode: 'custom' as const };
+                      setSettings(updated);
+                      savePlatformSettings(updated);
+                    }}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    className="w-full text-xs font-mono px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl dir-ltr focus:outline-hidden focus:border-purple-500"
+                  />
+                </div>
+
+                {/* Quick Presets for Wallpapers */}
+                <div className="space-y-1.5">
+                  <span className="text-[11px] text-slate-500 font-bold block">صور أكاديمية مقترحة عالية الدقة:</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {[
+                      { name: 'مكتبة كبرى عريقة 📚', url: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1920&q=80' },
+                      { name: 'فضاء ونجوم وعلم فلك 🌌', url: 'https://images.unsplash.com/photo-1506703719100-a0f3a48c0f86?auto=format&fit=crop&w=1920&q=80' },
+                      { name: 'مدرج تفاعلي وتكنولوجيا 💻', url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1920&q=80' },
+                      { name: 'نمط تجريدي هندسي 📐', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1920&q=80' },
+                    ].map((sample) => (
+                      <button
+                        key={sample.name}
+                        type="button"
+                        onClick={() => {
+                          const updated = {
+                            ...settings,
+                            customBackgroundUrl: sample.url,
+                            backgroundMode: 'custom' as const,
+                            backgroundBlur: 4,
+                            backgroundOpacity: 60,
+                          };
+                          setSettings(updated);
+                          savePlatformSettings(updated);
+                          showToast(`تم تعيين خلفية: ${sample.name}`);
+                        }}
+                        className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-right text-xs font-bold text-slate-700 transition-colors"
+                      >
+                        {sample.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sliders for Blur and Opacity */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800 mb-1.5">
+                      <span>درجة الضبابية والتنعيم (Blur):</span>
+                      <span className="font-mono text-purple-700">{settings.backgroundBlur || 0}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="20"
+                      value={settings.backgroundBlur || 0}
+                      onChange={(e) => {
+                        const updated = { ...settings, backgroundBlur: Number(e.target.value) };
+                        setSettings(updated);
+                        savePlatformSettings(updated);
+                      }}
+                      className="w-full accent-purple-600 cursor-pointer"
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">تساعد في جعل النصوص والبطاقات مقروءة وواضحة جداً.</span>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-800 mb-1.5">
+                      <span>درجة الشفافية (Opacity):</span>
+                      <span className="font-mono text-purple-700">{settings.backgroundOpacity ?? 100}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      value={settings.backgroundOpacity ?? 100}
+                      onChange={(e) => {
+                        const updated = { ...settings, backgroundOpacity: Number(e.target.value) };
+                        setSettings(updated);
+                        savePlatformSettings(updated);
+                      }}
+                      className="w-full accent-purple-600 cursor-pointer"
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">تحديد مدى سطوع الصورة واندماجها مع محتوى المنصة.</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 5: VISUAL AMBIENCE & EFFECTS TOGGLES */}
+            <div className="pt-4 border-t border-slate-100 space-y-3">
+              <span className="block text-xs font-black text-slate-800">
+                المؤثرات البصرية التفاعلية الإضافية:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <label className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors">
+                  <div>
+                    <span className="block text-xs font-bold text-slate-800">الهالات الضوئية المتحركة</span>
+                    <span className="text-[10px] text-slate-500">إضاءات ناعمة (Ambient Mesh Orbs)</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.showMeshOrbs ?? true}
+                    onChange={(e) => {
+                      const updated = { ...settings, showMeshOrbs: e.target.checked };
+                      setSettings(updated);
+                      savePlatformSettings(updated);
+                    }}
+                    className="w-4 h-4 text-purple-600 rounded accent-purple-600"
+                  />
+                </label>
+
+                <label className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors">
+                  <div>
+                    <span className="block text-xs font-bold text-slate-800">الرموز الأكاديمية العائمة</span>
+                    <span className="text-[10px] text-slate-500">علامات الرياضيات والعلوم (∫, ∑, π, ∞)</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.showFloatingSymbols ?? true}
+                    onChange={(e) => {
+                      const updated = { ...settings, showFloatingSymbols: e.target.checked };
+                      setSettings(updated);
+                      savePlatformSettings(updated);
+                    }}
+                    className="w-4 h-4 text-purple-600 rounded accent-purple-600"
+                  />
+                </label>
+
+                <label className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors">
+                  <div>
+                    <span className="block text-xs font-bold text-slate-800">شبكة النقاط الهندسية</span>
+                    <span className="text-[10px] text-slate-500">مصفوفة نقاط خفيفة فائقة الأناقة</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.showGridTexture ?? true}
+                    onChange={(e) => {
+                      const updated = { ...settings, showGridTexture: e.target.checked };
+                      setSettings(updated);
+                      savePlatformSettings(updated);
+                    }}
+                    className="w-4 h-4 text-purple-600 rounded accent-purple-600"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* TAB 2: COURSES MANAGEMENT (إدارة وتعديل الكورسات بالكامل) */}
       {/* ========================================================================= */}
       {activeTab === 'courses' && (
@@ -710,7 +1307,7 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
                 >
                   <div>
                     <div className="relative h-40 overflow-hidden bg-slate-100">
-                      <img src={c.thumbnail} alt="" className="w-full h-full object-cover" />
+                      <img src={c.thumbnail} alt={c.title} className="w-full h-full object-cover" />
                       <div className="absolute top-2 right-2 bg-slate-950/80 text-white text-[10px] font-bold px-2 py-0.5 rounded-lg">
                         {c.gradeLevel}
                       </div>
@@ -813,7 +1410,7 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
             {teachers.map((t) => (
               <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-3">
                 <div className="flex items-start gap-3">
-                  <img src={t.avatar} alt="" className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-slate-200" />
+                  <img src={t.avatar} alt={t.name} className="w-14 h-14 rounded-2xl object-cover shrink-0 border border-slate-200" />
                   <div className="min-w-0 flex-1 space-y-1">
                     <h4 className="text-sm font-bold text-slate-900">{t.name}</h4>
                     <div className="text-xs text-blue-700 font-semibold">{t.title} - {t.subject}</div>
@@ -854,90 +1451,279 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 4: STUDENTS MANAGEMENT (إدارة حسابات وبيانات وكلمات مرور الطلاب) */}
+      {/* TAB 4: STUDENTS MANAGEMENT (إدارة حسابات وبيانات وكلمات مرور الطلاب وحالة الحساب) */}
       {/* ========================================================================= */}
-      {activeTab === 'students' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-black text-slate-900">سجل حسابات الطلاب وأولياء الأمور المعتمدة ({students.length})</h3>
-              <p className="text-xs text-slate-500 mt-0.5">يمكنك تعديل أي اسم، رقم هاتف، كلمة مرور، أو بيانات ولي الأمر مباشرة.</p>
+      {activeTab === 'students' && (() => {
+        const activeCount = students.filter((s) => (s.status || 'active') === 'active').length;
+        const pendingCount = students.filter((s) => s.status === 'pending').length;
+        const suspendedCount = students.filter((s) => s.status === 'suspended').length;
+
+        const filteredStudents = students.filter((s) => {
+          const status = s.status || 'active';
+          const matchesStatus = studentStatusFilter === 'all' || status === studentStatusFilter;
+          const q = studentSearchQuery.trim().toLowerCase();
+          const matchesSearch =
+            !q ||
+            s.name.toLowerCase().includes(q) ||
+            s.phone.includes(q) ||
+            (s.studentCode && s.studentCode.toLowerCase().includes(q)) ||
+            (s.parentName && s.parentName.toLowerCase().includes(q));
+          return matchesStatus && matchesSearch;
+        });
+
+        return (
+          <div className="space-y-4">
+            {/* Header with Title and Add Button */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 text-blue-600" />
+                  <span>سجل حسابات الطلاب وإدارة حالة الحساب (نشط / موقوف / قيد المراجعة) ({students.length})</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  تحكم كامل في حالة كل طالب الأكاديمية وصلاحية وصوله للكورسات وتعديل كلمة المرور أو بيانات ولي الأمر مباشرة.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  const newStudent: AuthUser = {
+                    role: 'student',
+                    name: 'طالب جديد',
+                    phone: '+2010' + Math.floor(10000000 + Math.random() * 90000000),
+                    password: '123456',
+                    parentName: 'ولي الأمر',
+                    parentPhone: '+2010' + Math.floor(10000000 + Math.random() * 90000000),
+                    studentCode: 'ST-' + Math.floor(100 + Math.random() * 900),
+                    status: 'active',
+                    statusReason: 'حساب جديد مفعل',
+                  };
+                  setEditingStudent(newStudent);
+                  setIsStudentModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm hover:shadow"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>إضافة طالب جديد يدوياً ➕</span>
+              </button>
             </div>
 
-            <button
-              onClick={() => {
-                const newStudent: AuthUser = {
-                  role: 'student',
-                  name: 'طالب جديد',
-                  phone: '+2010' + Math.floor(10000000 + Math.random() * 90000000),
-                  password: '123456',
-                  parentName: 'ولي الأمر',
-                  parentPhone: '+2010' + Math.floor(10000000 + Math.random() * 90000000),
-                  studentCode: 'ST-' + Math.floor(100 + Math.random() * 900),
-                };
-                setEditingStudent(newStudent);
-                setIsStudentModalOpen(true);
-              }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>إضافة طالب جديد يدوياً ➕</span>
-            </button>
-          </div>
+            {/* Quick KPI Status Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <button
+                type="button"
+                onClick={() => setStudentStatusFilter('all')}
+                className={`p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between ${
+                  studentStatusFilter === 'all'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                    : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <div>
+                  <span className="text-[11px] font-bold block opacity-75">إجمالي الطلاب المسجلين</span>
+                  <span className="text-lg font-black">{students.length}</span>
+                </div>
+                <Users className="w-5 h-5 opacity-60" />
+              </button>
 
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                <tr>
-                  <th className="p-3.5">اسم الطالب والكود</th>
-                  <th className="p-3.5">رقم هاتف الطالب</th>
-                  <th className="p-3.5">كلمة المرور</th>
-                  <th className="p-3.5">اسم ولي الأمر</th>
-                  <th className="p-3.5">هاتف ولي الأمر (واتساب)</th>
-                  <th className="p-3.5 text-center">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {students.map((s, idx) => (
-                  <tr key={s.phone || idx} className="hover:bg-slate-50 transition-colors">
-                    <td className="p-3.5">
-                      <div className="font-bold text-slate-900">{s.name}</div>
-                      <div className="font-mono text-[10px] text-blue-600">{s.studentCode || `ST-${101 + idx}`}</div>
-                    </td>
-                    <td className="p-3.5 font-mono dir-ltr text-left text-slate-700">{s.phone}</td>
-                    <td className="p-3.5 font-mono text-amber-700 bg-amber-50/50 rounded px-2 font-bold">
-                      {s.password || '123456'}
-                    </td>
-                    <td className="p-3.5 font-bold text-slate-800">{s.parentName || 'غير مسجل'}</td>
-                    <td className="p-3.5 font-mono dir-ltr text-left text-slate-700">{s.parentPhone || 'غير مسجل'}</td>
-                    <td className="p-3.5 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => {
-                            setEditingStudent({ ...s });
-                            setIsStudentModalOpen(true);
-                          }}
-                          className="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="تعديل بيانات الطالب وكلمة المرور"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteStudent(s.phone, s.name)}
-                          className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="حذف حساب الطالب"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+              <button
+                type="button"
+                onClick={() => setStudentStatusFilter('active')}
+                className={`p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between ${
+                  studentStatusFilter === 'active'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                    : 'bg-emerald-50/60 text-emerald-900 border-emerald-200 hover:bg-emerald-100/60'
+                }`}
+              >
+                <div>
+                  <span className="text-[11px] font-bold block">طلاب نشطون (نشط 🟢)</span>
+                  <span className="text-lg font-black">{activeCount}</span>
+                </div>
+                <UserCheck className="w-5 h-5 text-emerald-600" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStudentStatusFilter('pending')}
+                className={`p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between ${
+                  studentStatusFilter === 'pending'
+                    ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                    : 'bg-amber-50/70 text-amber-900 border-amber-200 hover:bg-amber-100/70'
+                }`}
+              >
+                <div>
+                  <span className="text-[11px] font-bold block">قيد المراجعة (🟡)</span>
+                  <span className="text-lg font-black">{pendingCount}</span>
+                </div>
+                <Clock className="w-5 h-5 text-amber-600" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStudentStatusFilter('suspended')}
+                className={`p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between ${
+                  studentStatusFilter === 'suspended'
+                    ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                    : 'bg-rose-50/60 text-rose-900 border-rose-200 hover:bg-rose-100/60'
+                }`}
+              >
+                <div>
+                  <span className="text-[11px] font-bold block">موقوفون مؤقتاً (🔴)</span>
+                  <span className="text-lg font-black">{suspendedCount}</span>
+                </div>
+                <UserX className="w-5 h-5 text-rose-600" />
+              </button>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={studentSearchQuery}
+                  onChange={(e) => setStudentSearchQuery(e.target.value)}
+                  placeholder="بحث باسم الطالب، الكود، الهاتف، أو ولي الأمر..."
+                  className="w-full text-xs pr-9 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <span className="text-xs text-slate-500 font-bold flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5" />
+                  <span>تصفية بالحالة:</span>
+                </span>
+                <select
+                  value={studentStatusFilter}
+                  onChange={(e) => setStudentStatusFilter(e.target.value as any)}
+                  className="text-xs font-bold px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden cursor-pointer"
+                >
+                  <option value="all">كافة الحالات ({students.length})</option>
+                  <option value="active">نشط فقط 🟢 ({activeCount})</option>
+                  <option value="pending">قيد المراجعة فقط 🟡 ({pendingCount})</option>
+                  <option value="suspended">موقوف فقط 🔴 ({suspendedCount})</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Students Table */}
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                  <tr>
+                    <th className="p-3.5">اسم الطالب والكود</th>
+                    <th className="p-3.5">رقم هاتف الطالب</th>
+                    <th className="p-3.5">حالة الطالب (Student Status) 🔄</th>
+                    <th className="p-3.5">كلمة المرور</th>
+                    <th className="p-3.5">اسم ولي الأمر وهاتفه</th>
+                    <th className="p-3.5 text-center">إجراءات</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-400">
+                        لا يوجد طلاب يطابقون شروط البحث والتصفية المختارة.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStudents.map((s, idx) => {
+                      const status = s.status || 'active';
+                      return (
+                        <tr key={s.phone || idx} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3.5">
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                              <span>{s.name}</span>
+                              {status === 'active' && (
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="نشط" />
+                              )}
+                              {status === 'pending' && (
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="قيد المراجعة" />
+                              )}
+                              {status === 'suspended' && (
+                                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="موقوف" />
+                              )}
+                            </div>
+                            <div className="font-mono text-[10px] text-blue-600 flex items-center gap-1 mt-0.5">
+                              <span>{s.studentCode || `ST-${101 + idx}`}</span>
+                              {s.statusReason && (
+                                <span className="text-slate-400 font-sans truncate max-w-[150px]" title={s.statusReason}>
+                                  • {s.statusReason}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3.5 font-mono dir-ltr text-left text-slate-700">{s.phone}</td>
+                          <td className="p-3.5">
+                            {/* Inline Interactive Status Dropdown Selector */}
+                            <div className="inline-flex items-center gap-1.5">
+                              <select
+                                value={status}
+                                onChange={(e) => handleQuickStatusChange(s, e.target.value as StudentStatus)}
+                                className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer shadow-2xs ${
+                                  status === 'active'
+                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800 focus:ring-1 focus:ring-emerald-400'
+                                    : status === 'pending'
+                                    ? 'bg-amber-50 border-amber-300 text-amber-900 focus:ring-1 focus:ring-amber-400'
+                                    : 'bg-rose-50 border-rose-300 text-rose-800 focus:ring-1 focus:ring-rose-400'
+                                }`}
+                              >
+                                <option value="active">🟢 نشط (Active)</option>
+                                <option value="pending">🟡 قيد المراجعة (Pending)</option>
+                                <option value="suspended">🔴 موقوف (Suspended)</option>
+                              </select>
+                            </div>
+                          </td>
+                          <td className="p-3.5 font-mono text-amber-700 bg-amber-50/50 rounded px-2 font-bold">
+                            {s.password || '123456'}
+                          </td>
+                          <td className="p-3.5">
+                            <div className="font-bold text-slate-800">{s.parentName || 'غير مسجل'}</div>
+                            <div className="font-mono text-[10px] text-slate-500 dir-ltr text-left">{s.parentPhone || '—'}</div>
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => {
+                                  if (onViewStudentProfile) {
+                                    onViewStudentProfile(s);
+                                  }
+                                }}
+                                className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-lg transition-colors flex items-center gap-1 font-bold text-[11px] cursor-pointer"
+                                title="معاينة الملف الشخصي للطالب وحالته"
+                              >
+                                <Eye className="w-4 h-4 text-emerald-600" />
+                                <span className="hidden sm:inline">معاينة الملف</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingStudent({ ...s });
+                                  setIsStudentModalOpen(true);
+                                }}
+                                className="p-1.5 text-slate-600 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                title="تعديل بيانات وحالة الطالب وكلمة المرور"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteStudent(s.phone, s.name)}
+                                className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="حذف حساب الطالب"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* TAB 5: GRADES RECORDS (سجل درجات أولياء الأمور) */}
@@ -1255,7 +2041,7 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                     <td className="p-3.5 text-center font-black text-amber-600 font-mono text-sm">#{item.rank}</td>
                     <td className="p-3.5 font-bold text-slate-900 flex items-center gap-2">
-                      <img src={item.avatar} alt="" className="w-7 h-7 rounded-full object-cover border" />
+                      <img src={item.avatar} alt={item.name} className="w-7 h-7 rounded-full object-cover border" />
                       <span>{item.name}</span>
                     </td>
                     <td className="p-3.5 text-slate-600">{item.gradeLevel}</td>
@@ -1703,6 +2489,48 @@ export const AdminDashboard: React.FC<Props> = ({ onUpdateCourses, onPreviewCour
                   className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono"
                   placeholder="ST-101"
                 />
+              </div>
+
+              {/* Student Status (حالة الطالب: نشط / موقوف / قيد المراجعة) */}
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-2">
+                <label className="block text-xs font-black text-slate-800">
+                  حالة الطالب الأكاديمية (Student Status) *
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'active', label: 'نشط 🟢', desc: 'صلاحيات كاملة', color: 'border-emerald-500 bg-emerald-50 text-emerald-900' },
+                    { id: 'pending', label: 'قيد المراجعة 🟡', desc: 'تدقيق البيانات', color: 'border-amber-500 bg-amber-50 text-amber-900' },
+                    { id: 'suspended', label: 'موقوف 🔴', desc: 'تجميد مؤقت', color: 'border-rose-500 bg-rose-50 text-rose-900' },
+                  ].map((st) => {
+                    const isSelected = (editingStudent.status || 'active') === st.id;
+                    return (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setEditingStudent({ ...editingStudent, status: st.id as StudentStatus })}
+                        className={`p-2.5 rounded-xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
+                          isSelected ? `${st.color} ring-2 ring-blue-500/30 shadow-xs font-bold` : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="text-xs font-black block">{st.label}</span>
+                        <span className="text-[10px] opacity-75 mt-0.5">{st.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1 mt-2">
+                    ملاحظة أو سبب الحالة (يظهر في صفحة الملف الشخصي للطالب):
+                  </label>
+                  <input
+                    type="text"
+                    value={editingStudent.statusReason || ''}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, statusReason: e.target.value })}
+                    placeholder="مثال: تم سداد المصروفات، أو بانتظار تأكيد رقم ولي الأمر..."
+                    className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-xl"
+                  />
+                </div>
               </div>
 
               <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
